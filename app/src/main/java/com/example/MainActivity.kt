@@ -20,6 +20,12 @@ import com.example.viewmodel.FeedViewModel
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: PreferencesManager
@@ -27,21 +33,36 @@ class MainActivity : ComponentActivity() {
     private lateinit var retrofitClient: RetrofitClient
     private lateinit var wsManager: WebSocketManager
     private lateinit var repository: CmoRepository
+    private lateinit var notificationHelper: NotificationHelper
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        // Handle response
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         prefs = PreferencesManager(this)
         db = Room.databaseBuilder(this, AppDatabase::class.java, "cmo_db").build()
         retrofitClient = RetrofitClient(this, prefs)
         wsManager = WebSocketManager(OkHttpClient())
+        notificationHelper = NotificationHelper(this)
         
         repository = CmoRepository(
             apiService = retrofitClient.apiService,
             wsManager = wsManager,
             db = db,
-            prefs = prefs
+            prefs = prefs,
+            notificationHelper = notificationHelper
         )
 
         // Check if user is logged in

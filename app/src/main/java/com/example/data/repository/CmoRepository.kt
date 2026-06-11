@@ -13,7 +13,8 @@ class CmoRepository(
     val apiService: ApiService,
     val wsManager: WebSocketManager,
     private val db: AppDatabase,
-    val prefs: PreferencesManager
+    val prefs: PreferencesManager,
+    val notificationHelper: com.example.NotificationHelper
 ) {
     suspend fun getFeed(cursor: String? = null): Result<List<Video>> {
         return try {

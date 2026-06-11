@@ -116,7 +116,7 @@ fun FeedScreen(viewModel: FeedViewModel) {
 @Composable
 fun CommentsSheet(comments: List<com.example.data.models.VideoComment>, onAddComment: (String) -> Unit) {
     var newComment by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.6f).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.6f).padding(16.dp).imePadding()) {
         Text("Commentaires", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(8.dp))
         androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.weight(1f)) {

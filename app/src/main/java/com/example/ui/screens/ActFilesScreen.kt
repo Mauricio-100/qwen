@@ -28,7 +28,7 @@ fun ActFilesScreen(viewModel: ActFileViewModel) {
     val actFiles by viewModel.actFiles.collectAsState()
     var newPostContent by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -85,7 +85,7 @@ fun ActFileItem(file: ActFile, onLike: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onLike, modifier = Modifier.size(24.dp)) {
                         Icon(
-                            imageVector = if (file.liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            imageVector = if (file.liked) Icons.Filled.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Like",
                             tint = if (file.liked) Color.Red else Color.Gray
                         )

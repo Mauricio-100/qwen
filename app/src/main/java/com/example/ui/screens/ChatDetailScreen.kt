@@ -31,7 +31,7 @@ fun ChatDetailScreen(
         viewModel.loadMessages(userId)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
         LazyColumn(
             modifier = Modifier
                 .weight(1f)

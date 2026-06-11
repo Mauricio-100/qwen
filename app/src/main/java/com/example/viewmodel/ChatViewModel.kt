@@ -37,18 +37,21 @@ class ChatViewModel(private val repository: CmoRepository) : ViewModel() {
         // Ecouter les messages websockets
         repository.wsManager.messageEvents.onEach { json ->
             if (json.optString("type") == "new_message") {
+                val senderUsername = json.optString("sender_username")
+                val content = json.optString("content")
                 val newMessage = Message(
                     id = json.optString("message_id"),
-                    content = json.optString("content"),
+                    content = content,
                     type = "text",
                     senderId = json.optString("sender_id"),
                     receiverId = "", // Current user
                     read = false,
-                    senderUsername = json.optString("sender_username"),
+                    senderUsername = senderUsername,
                     senderAvatar = null
                 )
                 _messages.value = _messages.value + newMessage
                 loadConversations() // update last message
+                repository.notificationHelper.showNotification(senderUsername, content)
             }
         }.launchIn(viewModelScope)
     }

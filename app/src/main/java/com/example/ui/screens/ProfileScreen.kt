@@ -161,7 +161,7 @@ fun MyVideosTab(viewModel: ProfileViewModel) {
     if (videos.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Aucune vidéo") }
     } else {
-        LazyVerticalGrid(columns = GridCells.Fixed(3)) {
+        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize()) {
             items(videos) { video ->
                 AsyncImage(
                     model = video.thumbnailUrl,
