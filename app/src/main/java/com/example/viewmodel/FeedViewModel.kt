@@ -149,6 +149,12 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
         }
     }
 
+    fun downloadVideo(video: Video) {
+        viewModelScope.launch {
+            repository.downloadManager?.downloadVideo(video)
+        }
+    }
+
     fun likeVideo(videoId: String) {
         viewModelScope.launch {
             try {

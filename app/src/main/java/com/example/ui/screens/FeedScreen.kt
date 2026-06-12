@@ -75,7 +75,6 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
     var activeStoryIndex by remember { mutableIntStateOf(-1) }
 
     // UI Modal States
-    var showPublishBottomSheet by remember { mutableStateOf(false) }
 
     // Optimized Single Shared ExoPlayer for the entire feed
     val context = LocalContext.current
@@ -134,8 +133,8 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                         viewModel.shareVideo(context, video)
                     },
                     onDownloadClick = {
-                        // Simulated Download
-                        Toast.makeText(context, "Vidéo enregistrée dans la galerie !", Toast.LENGTH_SHORT).show()
+                        viewModel.downloadVideo(video)
+                        Toast.makeText(context, "Téléchargement commencé...", Toast.LENGTH_SHORT).show()
                     },
                     onProfileClick = {
                         navController.navigate("${Routes.USER_PROFILE}/${video.userId}")
@@ -186,14 +185,6 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                     )
                 }
             }
-        }
-
-        if (showPublishBottomSheet) {
-            com.example.ui.components.PublishBottomSheet(
-                feedViewModel = viewModel,
-                actFileViewModel = null,
-                onDismiss = { showPublishBottomSheet = false }
-            )
         }
 
         // End of dialog overlays
@@ -430,7 +421,7 @@ fun VideoPage(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = video.description, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+            com.example.ui.components.FormattedText(text = video.description, color = Color.White, style = MaterialTheme.typography.bodyMedium)
             
             Spacer(modifier = Modifier.height(12.dp))
             

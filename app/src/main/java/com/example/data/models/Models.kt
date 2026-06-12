@@ -161,6 +161,19 @@ data class VideoComment(
 )
 
 @JsonClass(generateAdapter = true)
+data class Notification(
+    val id: String,
+    val type: String,
+    @Json(name = "from_user_id") val fromUserId: String?,
+    @Json(name = "from_username") val fromUsername: String?,
+    @Json(name = "from_avatar") val fromAvatar: String?,
+    @Json(name = "target_id") val targetId: String?,
+    val message: String,
+    val read: Boolean,
+    @Json(name = "created_at") val createdAt: String
+)
+
+@JsonClass(generateAdapter = true)
 data class ActFileReply(
     val id: String,
     @Json(name = "user_id") val userId: String,

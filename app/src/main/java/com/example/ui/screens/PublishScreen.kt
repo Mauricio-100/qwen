@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.example.ui.screens
 
 import android.net.Uri
 import android.widget.Toast
@@ -23,9 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -34,13 +41,14 @@ import com.example.viewmodel.FeedViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublishBottomSheet(
+fun PublishScreen(
     feedViewModel: FeedViewModel,
     actFileViewModel: ActFileViewModel? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val isLoading by feedViewModel.isLoading.collectAsState()
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Vidéo, 1 = Story, 2 = ActFile
     
@@ -112,27 +120,27 @@ fun PublishBottomSheet(
         Pair("🖤 Retro N&B", "retro_bw")
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.background,
-        dragHandle = { BottomSheetDefaults.DragHandle() }
-    ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Créer un Contenu") },
+                navigationIcon = {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.ArrowBack, "Retour")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp, top = 8.dp)
+                .verticalScroll(scrollState)
                 .imePadding()
         ) {
-            // Header
-            Text(
-                text = "Créer un Contenu",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
             
             // Tabs Row
             TabRow(
@@ -184,7 +192,7 @@ fun PublishBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(100.dp)
+                                    .height(200.dp)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(
                                         if (selectedVideoUri != null) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -203,31 +211,80 @@ fun PublishBottomSheet(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (selectedVideoUri != null) Icons.Default.CheckCircle else Icons.Default.VideoLibrary,
-                                        contentDescription = null,
-                                        tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(32.dp)
+                                if (selectedVideoUri != null) {
+                                    val filterColor = when(selectedEffect) {
+                                        "cyberpunk" -> Color(0xFFFF00FF)
+                                        "vintage" -> Color(0xFF8B4513)
+                                        "retro_bw" -> Color.Gray
+                                        "vignette" -> Color.Black
+                                        else -> MaterialTheme.colorScheme.primary
+                                    }
+                                    val blendMode = when(selectedEffect) {
+                                        "retro_bw" -> androidx.compose.ui.graphics.BlendMode.Saturation
+                                        "cyberpunk" -> androidx.compose.ui.graphics.BlendMode.ColorDodge
+                                        "vintage" -> androidx.compose.ui.graphics.BlendMode.Color
+                                        else -> androidx.compose.ui.graphics.BlendMode.ColorBurn
+                                    }
+
+                                    AsyncImage(
+                                        model = selectedVideoUri,
+                                        contentDescription = "Aperçu de la vidéo",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        colorFilter = if (selectedEffect != null) androidx.compose.ui.graphics.ColorFilter.tint(filterColor.copy(alpha = 0.5f), blendMode) else null
                                     )
-                                    Column {
+                                    if (selectedEffect != null) {
                                         Text(
-                                            text = if (selectedVideoUri != null) "Vidéo prête à l'envoi !" else "Choisir depuis ma Galerie",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            text = "Effet: $selectedEffect",
+                                            color = Color.White,
+                                            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(4.dp),
+                                            style = MaterialTheme.typography.labelSmall
                                         )
-                                        Text(
-                                            text = if (selectedVideoUri != null) "Cliquez pour modifier votre choix" else "Vitesse d'upload maximale en Cloudinary",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    }
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VideoLibrary,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(32.dp)
                                         )
+                                        Column {
+                                            Text(
+                                                text = "Choisir depuis ma Galerie",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                            Text(
+                                                text = "Vitesse d'upload maximale en Cloudinary",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                            )
+                                        }
                                     }
                                 }
                             }
                             
+                            // Effect picker
+                            Text(
+                                text = "Appliquer un filtre ou effet visuel (Cloudinary) :",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(filterEffects) { effect ->
+                                    FilterChip(
+                                        selected = selectedEffect == effect.second,
+                                        onClick = { selectedEffect = effect.second },
+                                        label = { Text(effect.first) }
+                                    )
+                                }
+                            }
+
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             
                             OutlinedTextField(
@@ -237,7 +294,9 @@ fun PublishBottomSheet(
                                 placeholder = { Text("Quoi de neuf ? #tendance #strip") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                maxLines = 3
+                                maxLines = 5,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() })
                             )
                             
                             if (selectedVideoUri == null) {
@@ -258,7 +317,9 @@ fun PublishBottomSheet(
                                     placeholder = { Text("https://example.com/video.mp4") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() })
                                 )
                             }
 
@@ -335,7 +396,7 @@ fun PublishBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(100.dp)
+                                    .height(200.dp)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(
                                         if (selectedStoryUri != null) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -354,27 +415,59 @@ fun PublishBottomSheet(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (selectedStoryUri != null) Icons.Default.CheckCircle else Icons.Default.PhotoLibrary,
-                                        contentDescription = null,
-                                        tint = if (selectedStoryUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(32.dp)
+                                if (selectedStoryUri != null) {
+                                    val filterColor = when(selectedEffect) {
+                                        "cyberpunk" -> Color(0xFFFF00FF)
+                                        "vintage" -> Color(0xFF8B4513)
+                                        "retro_bw" -> Color.Gray
+                                        "vignette" -> Color.Black
+                                        else -> MaterialTheme.colorScheme.primary
+                                    }
+                                    val blendMode = when(selectedEffect) {
+                                        "retro_bw" -> androidx.compose.ui.graphics.BlendMode.Saturation
+                                        "cyberpunk" -> androidx.compose.ui.graphics.BlendMode.ColorDodge
+                                        "vintage" -> androidx.compose.ui.graphics.BlendMode.Color
+                                        else -> androidx.compose.ui.graphics.BlendMode.ColorBurn
+                                    }
+
+                                    AsyncImage(
+                                        model = selectedStoryUri,
+                                        contentDescription = "Aperçu de la story",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        colorFilter = if (selectedEffect != null) androidx.compose.ui.graphics.ColorFilter.tint(filterColor.copy(alpha = 0.5f), blendMode) else null
                                     )
-                                    Column {
+                                    if (selectedEffect != null) {
                                         Text(
-                                            text = if (selectedStoryUri != null) "Média de la Story sélectionné !" else "Photos et vidéos de ma Galerie",
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            text = "Filtre: $selectedEffect",
+                                            color = Color.White,
+                                            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(4.dp),
+                                            style = MaterialTheme.typography.labelSmall
                                         )
-                                        Text(
-                                            text = if (selectedStoryUri != null) "Cliquez pour modifier le média" else "Sélection individuelle sécurisée sans permissions intrusives",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    }
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PhotoLibrary,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(32.dp)
                                         )
+                                        Column {
+                                            Text(
+                                                text = "Photos et vidéos de ma Galerie",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                            Text(
+                                                text = "Sélection individuelle sécurisée",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -417,7 +510,9 @@ fun PublishBottomSheet(
                                     placeholder = { Text("https://example.com/story.jpg") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() })
                                 )
                             }
                         }
@@ -428,11 +523,13 @@ fun PublishBottomSheet(
                                 value = actFileContent,
                                 onValueChange = { actFileContent = it },
                                 label = { Text("Contenu du message (Markdown accepté)") },
-                                placeholder = { Text("Donnez libre cours à votre créative ici... #markdown") },
+                                placeholder = { Text("Donnez libre cours à votre créature ici... #markdown") },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(140.dp),
-                                shape = RoundedCornerShape(12.dp)
+                                    .height(240.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Default)
+                                // We don't put 'Done' here usually because they might want to enter multiple lines with the return key
                             )
                             
                             Row(
@@ -457,6 +554,7 @@ fun PublishBottomSheet(
             // Primary Action Button
             Button(
                 onClick = {
+                    focusManager.clearFocus()
                     when (selectedTab) {
                         0 -> { // Video Publish
                             if (selectedVideoUri != null) {
@@ -560,6 +658,7 @@ fun PublishBottomSheet(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

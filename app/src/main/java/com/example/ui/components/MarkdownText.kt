@@ -162,7 +162,7 @@ fun MarkdownFormattedText(
 ) {
     if (text.isBlank()) return
 
-    if (text.startsWith("#")) {
+    if (text.startsWith("#") && text.length > 2 && text[1] == ' ') {
         val hashCount = text.takeWhile { it == '#' }.length
         val headerText = text.drop(hashCount).trim()
         val textStyle = when (hashCount) {
@@ -178,24 +178,37 @@ fun MarkdownFormattedText(
     val isListItem = text.startsWith("- ") || text.startsWith("* ")
     val cleanedText = if (isListItem) text.drop(2) else text
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.tertiary
+
     val annotatedString = buildAnnotatedString {
         if (isListItem) {
             append("• ")
         }
         
         var currentIndex = 0
-        val boldRegex = Regex("\\*\\*(.*?)\\*\\*|__(.*?)__")
-        val matches = boldRegex.findAll(cleanedText).toList()
+        // Combined regex for Bold, Mentions and Tags
+        val complexRegex = Regex("\\\\\\*\\\\\\*(.*?)\\\\\\*\\\\\\*|__(.*?)__|(@[\\\\w.]+)|(#[\\\\w.]+)")
+        val matches = complexRegex.findAll(cleanedText).toList()
         
         for (match in matches) {
             if (match.range.first > currentIndex) {
                 append(cleanedText.substring(currentIndex, match.range.first))
             }
             
-            val innerText = match.groupValues[1].ifEmpty { match.groupValues[2] }
-            
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                append(innerText)
+            if (match.groupValues[1].isNotEmpty() || match.groupValues[2].isNotEmpty()) {
+                val innerText = match.groupValues[1].ifEmpty { match.groupValues[2] }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(innerText)
+                }
+            } else if (match.groupValues[3].isNotEmpty()) {
+                withStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                    append(match.groupValues[3])
+                }
+            } else if (match.groupValues[4].isNotEmpty()) {
+                withStyle(SpanStyle(color = secondaryColor, fontWeight = FontWeight.Bold)) {
+                    append(match.groupValues[4])
+                }
             }
             
             currentIndex = match.range.last + 1

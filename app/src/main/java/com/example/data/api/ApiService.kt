@@ -142,6 +142,12 @@ interface ApiService {
     @PUT("api/users/me")
     suspend fun updateProfile(@Body updates: Map<String, String>): User
 
+    @GET("api/notifications")
+    suspend fun getNotifications(
+        @Query("unread_only") unreadOnly: Boolean = false,
+        @Query("limit") limit: Int = 50
+    ): List<com.example.data.models.Notification>
+
     @GET("api/users/{id}/videos")
     suspend fun getUserVideos(@Path("id") userId: String): List<Video>
 }

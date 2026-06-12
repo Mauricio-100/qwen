@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,17 +59,22 @@ class MainActivity : ComponentActivity() {
         }
 
         prefs = PreferencesManager(this)
-        db = Room.databaseBuilder(this, AppDatabase::class.java, "strip_db").build()
+        db = Room.databaseBuilder(this, AppDatabase::class.java, "strip_db")
+            .fallbackToDestructiveMigration()
+            .build()
         retrofitClient = RetrofitClient(this, prefs)
         wsManager = WebSocketManager(OkHttpClient())
         notificationHelper = NotificationHelper(this)
         
+        val downloadManager = com.example.utils.VideoDownloadManager(this, db, OkHttpClient())
+
         repository = StripRepository(
             apiService = retrofitClient.apiService,
             wsManager = wsManager,
             db = db,
             prefs = prefs,
-            notificationHelper = notificationHelper
+            notificationHelper = notificationHelper,
+            downloadManager = downloadManager
         )
 
         val factory = object : ViewModelProvider.Factory {
@@ -84,14 +90,37 @@ class MainActivity : ComponentActivity() {
 
         // Initial content while loading state
         setContent {
-            MyApplicationTheme {
-                var startDestination by remember { mutableStateOf<String?>(null) }
+            val isDarkThemePref by prefs.isDarkThemeFlow.collectAsState(initial = null)
+            val darkTheme = isDarkThemePref ?: androidx.compose.foundation.isSystemInDarkTheme()
 
-                LaunchedEffect(Unit) {
-                    val token = prefs.getToken()
+            MyApplicationTheme(darkTheme = darkTheme) {
+                var startDestination by remember { mutableStateOf<String?>(null) }
+                val token by prefs.tokenFlow.collectAsState(initial = null)
+
+                LaunchedEffect(token) {
                     if (!token.isNullOrEmpty()) {
                         repository.connectWebSocket()
                         startDestination = Routes.FEED
+                        
+                        // Real-Time WebSocket Listener for Notifications
+                        launch {
+                            repository.wsManager.messageEvents.collect { json ->
+                                val type = json.optString("type")
+                                if (type == "notification") {
+                                    val message = json.optString("message")
+                                    val title = json.optString("title", "STRIP - Nouveau")
+                                    notificationHelper.showNotification(
+                                        title = title,
+                                        message = message
+                                    )
+                                } else if (type == "new_follower") {
+                                    notificationHelper.showNotification(
+                                        title = "STRIP",
+                                        message = "Vous avez un nouvel abonné !"
+                                    )
+                                }
+                            }
+                        }
                     } else {
                         startDestination = Routes.AUTH
                     }

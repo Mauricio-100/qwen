@@ -30,6 +30,38 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     private val _verificationStatus = MutableStateFlow<com.example.data.models.VerificationStatusResponse?>(null)
     val verificationStatus: StateFlow<com.example.data.models.VerificationStatusResponse?> = _verificationStatus.asStateFlow()
 
+    val isDarkThemeFlow = repository.prefs.isDarkThemeFlow
+    val downloadedVideos = repository.downloadManager?.getDownloadedVideos() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    fun logout() {
+        viewModelScope.launch {
+            repository.prefs.clearAuth()
+            repository.disconnectWebSocket()
+        }
+    }
+
+    fun setThemeMode(isDark: Boolean) {
+        viewModelScope.launch {
+            repository.prefs.setThemeMode(isDark)
+        }
+    }
+
+    private val _notifications = MutableStateFlow<List<com.example.data.models.Notification>>(emptyList())
+    val notifications: StateFlow<List<com.example.data.models.Notification>> = _notifications.asStateFlow()
+
+    fun loadNotifications() {
+        viewModelScope.launch {
+            try {
+                val result = repository.getNotifications()
+                result.onSuccess {
+                    _notifications.value = it
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun loadAllUsers() {
         viewModelScope.launch {
             try {

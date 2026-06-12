@@ -14,7 +14,8 @@ class StripRepository(
     val wsManager: WebSocketManager,
     private val db: AppDatabase,
     val prefs: PreferencesManager,
-    val notificationHelper: com.example.NotificationHelper
+    val notificationHelper: com.example.NotificationHelper,
+    val downloadManager: com.example.utils.VideoDownloadManager? = null
 ) {
     suspend fun getFeed(cursor: String? = null): Result<List<Video>> {
         return try {
@@ -66,5 +67,14 @@ class StripRepository(
                 views = video.views
             )
         ))
+    }
+
+    suspend fun getNotifications(unreadOnly: Boolean = false): Result<List<com.example.data.models.Notification>> {
+        return try {
+            val notifications = apiService.getNotifications(unreadOnly = unreadOnly)
+            Result.success(notifications)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

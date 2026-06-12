@@ -41,6 +41,8 @@ import com.example.ui.screens.ActFilesScreen
 import com.example.ui.screens.ChatDetailScreen
 import androidx.compose.material.icons.filled.List
 
+import com.example.ui.screens.PublishScreen
+
 object Routes {
     const val AUTH = "auth"
     const val FEED = "feed"
@@ -50,6 +52,9 @@ object Routes {
     const val USER_PROFILE = "user_profile"
     const val ACTFILES = "actfiles"
     const val VERIFICATION = "verification"
+    const val PUBLISH = "publish"
+    const val NOTIFICATIONS = "notifications"
+    const val FIND_FRIENDS = "find_friends"
 }
 
 @Composable
@@ -64,12 +69,11 @@ fun MainApp(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    var showPublishBottomSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != Routes.AUTH && currentRoute?.startsWith(Routes.CHAT_DETAIL) == false) {
-                BottomNavigationBar(navController, currentRoute, onPublishClick = { showPublishBottomSheet = true })
+            if (currentRoute != Routes.AUTH && currentRoute?.startsWith(Routes.CHAT_DETAIL) == false && currentRoute != Routes.PUBLISH) {
+                BottomNavigationBar(navController, currentRoute, onPublishClick = { navController.navigate(Routes.PUBLISH) })
             }
         }
     ) { innerPadding ->
@@ -95,6 +99,12 @@ fun MainApp(
                         feedViewModel = feedViewModel,
                         onNavigateToChat = { userId ->
                             navController.navigate("${Routes.CHAT_DETAIL}/$userId")
+                        },
+                        onNavigateToNotifications = {
+                            navController.navigate(Routes.NOTIFICATIONS)
+                        },
+                        onNavigateToFindFriends = {
+                            navController.navigate(Routes.FIND_FRIENDS)
                         }
                     )
                 }
@@ -102,8 +112,31 @@ fun MainApp(
                     val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
                     ChatDetailScreen(viewModel = chatViewModel, userId = userId, onNavigateBack = { navController.popBackStack() })
                 }
+                composable(Routes.NOTIFICATIONS) {
+                    com.example.ui.screens.NotificationsScreen(
+                        viewModel = profileViewModel,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Routes.FIND_FRIENDS) {
+                    com.example.ui.screens.FindFriendsScreen(
+                        viewModel = profileViewModel,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToChat = { userId ->
+                            navController.navigate("${Routes.CHAT_DETAIL}/$userId")
+                        },
+                        onNavigateToProfile = { userId ->
+                            navController.navigate("${Routes.USER_PROFILE}/$userId")
+                        }
+                    )
+                }
                 composable(Routes.ACTFILES) {
-                    ActFilesScreen(viewModel = actFileViewModel, feedViewModel = feedViewModel)
+                    ActFilesScreen(
+                        viewModel = actFileViewModel, 
+                        feedViewModel = feedViewModel,
+                        onNavigateToPublish = { navController.navigate(Routes.PUBLISH) },
+                        onNavigateToProfile = { userId -> navController.navigate("${Routes.USER_PROFILE}/$userId") }
+                    )
                 }
                 composable(Routes.PROFILE) {
                     ProfileScreen(
@@ -122,14 +155,13 @@ fun MainApp(
                 composable(Routes.VERIFICATION) {
                     com.example.ui.screens.VerificationScreen(viewModel = profileViewModel)
                 }
-            }
-            
-            if (showPublishBottomSheet) {
-                com.example.ui.components.PublishBottomSheet(
-                    feedViewModel = feedViewModel,
-                    actFileViewModel = actFileViewModel,
-                    onDismiss = { showPublishBottomSheet = false }
-                )
+                composable(Routes.PUBLISH) {
+                    PublishScreen(
+                        feedViewModel = feedViewModel,
+                        actFileViewModel = actFileViewModel,
+                        onDismiss = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }

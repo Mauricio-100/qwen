@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.viewmodel.ProfileViewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,7 +39,7 @@ fun ProfileScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = if (userId == null) {
-        listOf("Profil", "Mes Vidéos", "Sons", "Amis", "Statistiques")
+        listOf("Profil", "Mes Vidéos", "Téléchargements", "Sons", "Amis", "Statistiques")
     } else {
         listOf("Vidéos", "Sons")
     }
@@ -58,8 +59,27 @@ fun ProfileScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     userProfile?.let { user ->
         Column(modifier = Modifier.fillMaxSize()) {
+            // App Bar with Logout
+            if (userId == null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { 
+                        viewModel.logout()
+                    }) {
+                        Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -67,13 +87,15 @@ fun ProfileScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val outlineColor = MaterialTheme.colorScheme.primary
+
                     val avatarPickerLauncher = rememberLauncherForActivityResult(
                         contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
                     ) { uri ->
                         if (uri != null) {
-                            // In a real app, you'd upload this to a server
-                            // For now, we update the local state if the API supports it or just show local preview
-                            // viewModel.uploadAvatar(context, uri)
+                            // Update avatar URL locally using the URI
+                            viewModel.updateProfile(mapOf("avatar_url" to uri.toString()))
                         }
                     }
 
@@ -176,6 +198,7 @@ fun ProfileScreen(
                 when {
                     currentTabTitle == "Profil" -> ProfileInfoTab(user, viewModel)
                     currentTabTitle == "Mes Vidéos" || currentTabTitle == "Vidéos" -> MyVideosTab(viewModel)
+                    currentTabTitle == "Téléchargements" -> DownloadedVideosTab(viewModel)
                     currentTabTitle == "Sons" -> UserSoundsTab(viewModel)
                     currentTabTitle == "Amis" -> FriendsTab(viewModel)
                     currentTabTitle == "Statistiques" -> StatsTab(viewModel)
@@ -190,13 +213,55 @@ fun ProfileScreen(
 }
 
 @Composable
+fun DownloadedVideosTab(viewModel: ProfileViewModel) {
+    val videos by viewModel.downloadedVideos.collectAsState(initial = emptyList())
+    if (videos.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Aucun téléchargement") }
+    } else {
+        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize()) {
+            items(videos) { video ->
+                Box(modifier = Modifier.aspectRatio(9f/16f).padding(2.dp)) {
+                    AsyncImage(
+                        model = video.thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                    Icon(
+                        Icons.Default.DownloadDone,
+                        contentDescription = null,
+                        tint = Color.Green,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp).background(Color.Black.copy(alpha=0.5f), CircleShape)
+                    )
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.align(Alignment.Center).size(32.dp).background(Color.Black.copy(alpha=0.5f), CircleShape)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ProfileInfoTab(user: com.example.data.models.User, viewModel: ProfileViewModel) {
     var email by remember { mutableStateOf(user.email ?: "") }
     var phone by remember { mutableStateOf(user.phoneNumber ?: "") }
     var dob by remember { mutableStateOf(user.birthDate ?: "") }
 
+    val isDarkThemePref by viewModel.isDarkThemeFlow.collectAsState(initial = null)
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkTheme = isDarkThemePref ?: isSystemDark
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Mode Sombre")
+                Switch(checked = isDarkTheme, onCheckedChange = { viewModel.setThemeMode(it) })
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Numéro") }, modifier = Modifier.fillMaxWidth())
@@ -224,12 +289,27 @@ fun MyVideosTab(viewModel: ProfileViewModel) {
     } else {
         LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize()) {
             items(videos) { video ->
-                AsyncImage(
-                    model = video.thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier.aspectRatio(9f/16f).padding(2.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
+                Box(modifier = Modifier.aspectRatio(9f/16f).padding(2.dp)) {
+                    AsyncImage(
+                        model = video.thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.align(Alignment.Center).size(32.dp).background(Color.Black.copy(alpha=0.5f), CircleShape)
+                    )
+                    Text(
+                        video.views.toString(),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(4.dp)
+                    )
+                }
             }
         }
     }
@@ -253,8 +333,35 @@ fun FriendsTab(viewModel: ProfileViewModel) {
 @Composable
 fun StatsTab(viewModel: ProfileViewModel) {
     val stats by viewModel.serverStats.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
+            Text("Mes Statistiques Réelles", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        if (userProfile != null) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Abonnement(s)", fontWeight = FontWeight.Bold)
+                    Text(userProfile!!.followingCount.toString())
+                }
+                HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Abonné(s)", fontWeight = FontWeight.Bold)
+                    Text(userProfile!!.followersCount.toString())
+                }
+                HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total J'aimes reçus", fontWeight = FontWeight.Bold)
+                    Text(userProfile!!.likesReceived.toString())
+                }
+                HorizontalDivider()
+            }
+        }
+        
+        item {
+            Spacer(modifier = Modifier.height(32.dp))
             Text("Statistiques Globales du Serveur", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
         }

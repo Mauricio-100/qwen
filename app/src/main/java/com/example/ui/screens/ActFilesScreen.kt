@@ -50,14 +50,15 @@ import androidx.media3.ui.PlayerView
 @Composable
 fun ActFilesScreen(
     viewModel: ActFileViewModel,
-    feedViewModel: FeedViewModel
+    feedViewModel: FeedViewModel,
+    onNavigateToPublish: () -> Unit,
+    onNavigateToProfile: (String) -> Unit
 ) {
     val actFiles by viewModel.actFiles.collectAsState()
     val stories by feedViewModel.stories.collectAsState()
     var newPostContent by remember { mutableStateOf("") }
     
     var activeStoryIndex by remember { mutableIntStateOf(-1) }
-    var showPublishStoryDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
         Row(
@@ -105,7 +106,7 @@ fun ActFilesScreen(
                                 modifier = Modifier
                                     .width(90.dp)
                                     .height(120.dp)
-                                    .clickable { showPublishStoryDialog = true },
+                                    .clickable { onNavigateToPublish() },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             ) {
@@ -229,19 +230,15 @@ fun ActFilesScreen(
 
             // ActFiles List Items
             items(actFiles) { file ->
-                ActFileItem(file = file, viewModel = viewModel, onLike = { viewModel.likeActFile(file.id) })
+                ActFileItem(
+                    file = file, 
+                    viewModel = viewModel, 
+                    onLike = { viewModel.likeActFile(file.id) },
+                    onNavigateToProfile = onNavigateToProfile
+                )
                 HorizontalDivider()
             }
         }
-    }
-
-    // Modal Publish Dialog trigger
-    if (showPublishStoryDialog) {
-        com.example.ui.components.PublishBottomSheet(
-            feedViewModel = feedViewModel,
-            actFileViewModel = viewModel,
-            onDismiss = { showPublishStoryDialog = false }
-        )
     }
 
     // Full screen interactive story viewer window
@@ -262,7 +259,8 @@ fun ActFilesScreen(
 fun ActFileItem(
     file: ActFile,
     viewModel: ActFileViewModel,
-    onLike: () -> Unit
+    onLike: () -> Unit,
+    onNavigateToProfile: (String) -> Unit
 ) {
     var showReplies by remember { mutableStateOf(false) }
 
@@ -280,7 +278,7 @@ fun ActFileItem(
         AsyncImage(
             model = file.avatarUrl ?: R.drawable.strip_logo,
             contentDescription = "Avatar",
-            modifier = Modifier.size(48.dp).clip(CircleShape)
+            modifier = Modifier.size(48.dp).clip(CircleShape).clickable { onNavigateToProfile(file.userId) }
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {

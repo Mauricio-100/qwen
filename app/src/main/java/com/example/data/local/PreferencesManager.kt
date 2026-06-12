@@ -17,6 +17,7 @@ class PreferencesManager(private val context: Context) {
         val TOKEN_KEY = stringPreferencesKey("jwt_token")
         val USER_ID_KEY = stringPreferencesKey("user_id")
         val USERNAME_KEY = stringPreferencesKey("username")
+        val THEME_MODE_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("theme_mode_dark")
     }
 
     suspend fun saveAuth(token: String, userId: String, username: String) {
@@ -27,15 +28,24 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
+    suspend fun setThemeMode(isDark: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[THEME_MODE_KEY] = isDark
+        }
+    }
+
     suspend fun clearAuth() {
         context.dataStore.edit { prefs ->
-            prefs.clear()
+            prefs.remove(TOKEN_KEY)
+            prefs.remove(USER_ID_KEY)
+            prefs.remove(USERNAME_KEY)
         }
     }
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { it[TOKEN_KEY] }
     val userIdFlow: Flow<String?> = context.dataStore.data.map { it[USER_ID_KEY] }
     val usernameFlow: Flow<String?> = context.dataStore.data.map { it[USERNAME_KEY] }
+    val isDarkThemeFlow: Flow<Boolean?> = context.dataStore.data.map { it[THEME_MODE_KEY] }
 
     suspend fun getToken(): String? {
         return tokenFlow.first()

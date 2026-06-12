@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +56,9 @@ import androidx.media3.ui.PlayerView
 fun ChatListScreen(
     viewModel: ChatViewModel,
     feedViewModel: FeedViewModel,
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToFindFriends: () -> Unit
 ) {
     val conversations by viewModel.conversations.collectAsState()
     val stories by viewModel.stories.collectAsState()
@@ -110,15 +114,31 @@ fun ChatListScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 
-                IconButton(
-                    onClick = { showNewChatSheet = true },
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Chat, contentDescription = "Nouvelle discussion", modifier = Modifier.size(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onNavigateToNotifications,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onNavigateToFindFriends,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Group, contentDescription = "Trouver des amis", tint = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { showNewChatSheet = true },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Chat, contentDescription = "Nouvelle discussion", modifier = Modifier.size(18.dp))
+                    }
                 }
             }
 
