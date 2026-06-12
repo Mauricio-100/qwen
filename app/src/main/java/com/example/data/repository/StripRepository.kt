@@ -9,7 +9,7 @@ import com.example.data.models.Video
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
-class CmoRepository(
+class StripRepository(
     val apiService: ApiService,
     val wsManager: WebSocketManager,
     private val db: AppDatabase,

@@ -11,7 +11,7 @@ import androidx.core.app.NotificationCompat
 class NotificationHelper(private val context: Context) {
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    private val channelId = "cmo_channel_id"
+    private val channelId = "strip_channel_id"
 
     init {
         createNotificationChannel()
@@ -19,8 +19,8 @@ class NotificationHelper(private val context: Context) {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "CMO Notifications"
-            val descriptionText = "Notifications for CMO"
+            val name = "STRIP Notifications"
+            val descriptionText = "Notifications for STRIP"
             val importance = NotificationManager.IMPORTANCE_DEFAULT
             val channel = NotificationChannel(channelId, name, importance).apply {
                 description = descriptionText

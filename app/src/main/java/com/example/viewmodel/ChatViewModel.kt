@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.models.Conversation
 import com.example.data.models.Message
 import com.example.data.models.User
-import com.example.data.repository.CmoRepository
+import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-class ChatViewModel(private val repository: CmoRepository) : ViewModel() {
+class ChatViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()

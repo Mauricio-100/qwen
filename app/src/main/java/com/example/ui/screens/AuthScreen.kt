@@ -37,7 +37,7 @@ fun AuthScreen(
             modifier = Modifier.padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = if (isLoginMode) "Login to CMO Streaming" else "Create Account", style = MaterialTheme.typography.headlineMedium)
+            Text(text = if (isLoginMode) "Login to STRIP" else "Create Account", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(

@@ -1,9 +1,13 @@
 package com.example.ui.screens
 
+import com.example.R
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,29 +21,41 @@ import com.example.viewmodel.ProfileViewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-
+import com.example.data.models.Video
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as lazyItems
-import androidx.compose.material.icons.filled.Edit
 
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
+    userId: String? = null,
     onNavigateToVerification: () -> Unit
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Profil", "Mes Vidéos", "Amis", "Statistiques")
+    val tabs = if (userId == null) {
+        listOf("Profil", "Mes Vidéos", "Sons", "Amis", "Statistiques")
+    } else {
+        listOf("Vidéos", "Sons")
+    }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadMyProfile()
-        viewModel.loadVerificationStatus()
-        viewModel.loadMyVideos()
-        viewModel.loadAllUsers()
-        viewModel.loadServerStats()
+    LaunchedEffect(userId) {
+        if (userId == null) {
+            viewModel.loadMyProfile()
+            viewModel.loadVerificationStatus()
+            viewModel.loadMyVideos()
+            viewModel.loadMySavedSounds()
+            viewModel.loadAllUsers()
+            viewModel.loadServerStats()
+        } else {
+            viewModel.loadUserProfile(userId)
+            viewModel.loadUserVideos(userId)
+            viewModel.loadUserSounds(userId)
+        }
     }
 
     userProfile?.let { user ->
@@ -62,21 +78,23 @@ fun ProfileScreen(
                     }
 
                     AsyncImage(
-                        model = user.avatarUrl ?: "https://via.placeholder.com/150",
+                        model = user.avatarUrl ?: R.drawable.strip_logo,
                         contentDescription = "Avatar",
                         modifier = Modifier
                             .size(100.dp)
                             .clip(CircleShape)
                     )
-                    IconButton(
-                        onClick = { 
-                            avatarPickerLauncher.launch(
-                                androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        modifier = Modifier.align(Alignment.BottomEnd).size(32.dp)
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Avatar", tint = MaterialTheme.colorScheme.primary)
+                    if (userId == null) {
+                        IconButton(
+                            onClick = { 
+                                avatarPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier.align(Alignment.BottomEnd).size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Avatar", tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -97,7 +115,7 @@ fun ProfileScreen(
                     Text(text = "Signe : $it", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
                 
-                if (!user.isVerified) {
+                if (!user.isVerified && userId == null) {
                     Spacer(modifier = Modifier.height(16.dp))
                     if (viewModel.verificationStatus.collectAsState().value != null) {
                         Button(onClick = onNavigateToVerification) {
@@ -105,6 +123,30 @@ fun ProfileScreen(
                         }
                     } else {
                        CircularProgressIndicator()
+                    }
+                }
+
+                if (userId != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { 
+                                viewModel.followUser(userId)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = if (user.isFollowing) ButtonDefaults.buttonColors(containerColor = Color.Gray) else ButtonDefaults.buttonColors()
+                        ) {
+                            Text(if (user.isFollowing) "Abonné" else "S'abonner")
+                        }
+                        OutlinedButton(
+                            onClick = { /* Navigate to chat */ },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Message")
+                        }
                     }
                 }
 
@@ -130,11 +172,13 @@ fun ProfileScreen(
             }
             
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                when (selectedTab) {
-                    0 -> ProfileInfoTab(user, viewModel)
-                    1 -> MyVideosTab(viewModel)
-                    2 -> FriendsTab(viewModel)
-                    3 -> StatsTab(viewModel)
+                val currentTabTitle = tabs[selectedTab]
+                when {
+                    currentTabTitle == "Profil" -> ProfileInfoTab(user, viewModel)
+                    currentTabTitle == "Mes Vidéos" || currentTabTitle == "Vidéos" -> MyVideosTab(viewModel)
+                    currentTabTitle == "Sons" -> UserSoundsTab(viewModel)
+                    currentTabTitle == "Amis" -> FriendsTab(viewModel)
+                    currentTabTitle == "Statistiques" -> StatsTab(viewModel)
                 }
             }
         }
@@ -197,7 +241,7 @@ fun FriendsTab(viewModel: ProfileViewModel) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         lazyItems(users) { u ->
             Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(model = u.avatarUrl ?: "https://via.placeholder.com/150", contentDescription = null, modifier = Modifier.size(50.dp).clip(CircleShape))
+                AsyncImage(model = u.avatarUrl ?: R.drawable.strip_logo, contentDescription = null, modifier = Modifier.size(50.dp).clip(CircleShape))
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(u.username, style = MaterialTheme.typography.titleMedium)
             }
@@ -226,6 +270,59 @@ fun StatsTab(viewModel: ProfileViewModel) {
             }
         } else {
             item { CircularProgressIndicator() }
+        }
+    }
+}
+
+@Composable
+fun UserSoundsTab(viewModel: ProfileViewModel) {
+    val sounds by viewModel.userSounds.collectAsState()
+    if (sounds.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text("Aucun son disponible 🎵", color = Color.Gray)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(sounds) { sound ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = sound.audioTitle ?: "Son original",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Par @${sound.audioOwner ?: sound.username}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { /* Play Preview */ }) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
         }
     }
 }

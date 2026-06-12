@@ -20,7 +20,8 @@ data class User(
     @Json(name = "followers_count") val followersCount: Int = 0,
     @Json(name = "following_count") val followingCount: Int = 0,
     @Json(name = "videos_count") val videosCount: Int = 0,
-    @Json(name = "likes_received") val likesReceived: Int = 0
+    @Json(name = "likes_received") val likesReceived: Int = 0,
+    @Json(name = "is_following") val isFollowing: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)
@@ -38,7 +39,10 @@ data class Video(
     val username: String = "",
     @Json(name = "avatar_url") val avatarUrl: String? = null,
     @Json(name = "is_verified") val isVerified: Boolean = false,
-    val liked: Boolean = false
+    val liked: Boolean = false,
+    @Json(name = "is_following") val isFollowing: Boolean = false,
+    @Json(name = "audio_title") val audioTitle: String? = "Original Sound",
+    @Json(name = "audio_owner") val audioOwner: String? = null
 )
 
 @JsonClass(generateAdapter = true)

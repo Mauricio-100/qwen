@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.models.Video
-import com.example.data.repository.CmoRepository
+import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +15,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 
-class FeedViewModel(private val repository: CmoRepository) : ViewModel() {
+class FeedViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _videos = MutableStateFlow<List<Video>>(emptyList())
     val videos: StateFlow<List<Video>> = _videos.asStateFlow()
@@ -92,12 +92,34 @@ class FeedViewModel(private val repository: CmoRepository) : ViewModel() {
         }
     }
 
-    fun shareVideo(videoId: String) {
-         _videos.value = _videos.value.map {
-             if (it.id == videoId) {
-                 it.copy(sharesCount = it.sharesCount + 1)
-             } else it
-         }
+    fun shareVideo(context: Context, video: Video) {
+        viewModelScope.launch {
+            try {
+                // repository.apiService.shareVideo(video.id) // If API exists
+                _videos.value = _videos.value.map {
+                    if (it.id == video.id) {
+                        it.copy(sharesCount = it.sharesCount + 1)
+                    } else it
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun followUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                val resp = repository.apiService.followUser(userId)
+                val status = resp["is_following"] as? Boolean ?: true
+                
+                _videos.value = _videos.value.map {
+                    if (it.userId == userId) {
+                        it.copy(isFollowing = status)
+                    } else it
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun loadFeed() {
@@ -157,7 +179,23 @@ class FeedViewModel(private val repository: CmoRepository) : ViewModel() {
         // This is replaced by uploadAndPublishStory
     }
 
-    fun uploadAndPublishVideo(context: Context, videoUri: Uri, description: String, callback: (Boolean, String?) -> Unit) {
+    fun saveSound(videoId: String) {
+        viewModelScope.launch {
+            try {
+                repository.apiService.saveSound(videoId)
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun uploadAndPublishVideo(
+        context: Context,
+        videoUri: Uri,
+        description: String,
+        audioTitle: String? = null,
+        audioOwner: String? = null,
+        effect: String? = null,
+        callback: (Boolean, String?) -> Unit
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
@@ -172,8 +210,19 @@ class FeedViewModel(private val repository: CmoRepository) : ViewModel() {
                 
                 val descBody = RequestBody.create("text/plain".toMediaTypeOrNull(), description)
                 val isPublicBody = RequestBody.create("text/plain".toMediaTypeOrNull(), "true")
+                
+                val audioTitleBody = audioTitle?.let { RequestBody.create("text/plain".toMediaTypeOrNull(), it) }
+                val audioOwnerBody = audioOwner?.let { RequestBody.create("text/plain".toMediaTypeOrNull(), it) }
+                val effectBody = effect?.let { RequestBody.create("text/plain".toMediaTypeOrNull(), it) }
 
-                val uploadedVideo = repository.apiService.uploadVideo(filePart, descBody, isPublicBody)
+                val uploadedVideo = repository.apiService.uploadVideo(
+                    filePart, 
+                    descBody, 
+                    isPublicBody,
+                    audioTitleBody,
+                    audioOwnerBody,
+                    effectBody
+                )
                 
                 _videos.value = listOf(uploadedVideo) + _videos.value
                 

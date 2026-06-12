@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.R
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,10 +9,12 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.BorderStroke
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -24,11 +27,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -53,9 +58,13 @@ import com.example.ui.components.FullscreenStoryViewer
 import com.example.viewmodel.FeedViewModel
 import kotlinx.coroutines.delay
 
+import android.content.Intent
+import androidx.navigation.NavController
+import com.example.ui.navigation.Routes
+
 @kotlin.OptIn(androidx.media3.common.util.UnstableApi::class, ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun FeedScreen(viewModel: FeedViewModel) {
+fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
     val videos by viewModel.videos.collectAsState()
     val pagerState = rememberPagerState(pageCount = { videos.size })
     var showCommentsFor by remember { mutableStateOf<String?>(null) }
@@ -68,7 +77,29 @@ fun FeedScreen(viewModel: FeedViewModel) {
     // UI Modal States
     var showPublishBottomSheet by remember { mutableStateOf(false) }
 
-    LaunchedEffect(pagerState.currentPage) {
+    // Optimized Single Shared ExoPlayer for the entire feed
+    val context = LocalContext.current
+    val sharedExoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            sharedExoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage, videos) {
+        if (videos.isNotEmpty() && pagerState.currentPage < videos.size) {
+            val video = videos[pagerState.currentPage]
+            val mediaItem = MediaItem.fromUri(Uri.parse(video.videoUrl))
+            sharedExoPlayer.setMediaItem(mediaItem)
+            sharedExoPlayer.prepare()
+            sharedExoPlayer.play()
+        }
+
         if (videos.isNotEmpty() && pagerState.currentPage >= videos.size - 2) {
             viewModel.loadMore()
         }
@@ -84,18 +115,38 @@ fun FeedScreen(viewModel: FeedViewModel) {
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
+                val video = videos[page]
                 VideoPage(
-                    video = videos[page],
+                    video = video,
+                    exoPlayer = sharedExoPlayer,
                     isFocused = pagerState.currentPage == page,
-                    onLike = { viewModel.likeVideo(videos[page].id) },
+                    onLike = { viewModel.likeVideo(video.id) },
                     onCommentClick = {
-                        showCommentsFor = videos[page].id
-                        viewModel.loadComments(videos[page].id)
+                        showCommentsFor = video.id
+                        viewModel.loadComments(video.id)
                     },
                     onShareClick = {
-                        viewModel.shareVideo(videos[page].id)
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Regardez cette vidéo de ${video.username} sur STRIP : ${video.videoUrl}")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Partager via"))
+                        viewModel.shareVideo(context, video)
                     },
-                    onDownloadClick = { /* No-op */ }
+                    onDownloadClick = {
+                        // Simulated Download
+                        Toast.makeText(context, "Vidéo enregistrée dans la galerie !", Toast.LENGTH_SHORT).show()
+                    },
+                    onProfileClick = {
+                        navController.navigate("${Routes.USER_PROFILE}/${video.userId}")
+                    },
+                    onFollowClick = {
+                        viewModel.followUser(video.userId)
+                    },
+                    onSaveSound = {
+                        viewModel.saveSound(video.id)
+                        Toast.makeText(context, "Son ajouté à votre bibliothèque 🎵", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -220,7 +271,7 @@ fun StoryCircle(story: Story, onClick: () -> Unit) {
                 .padding(3.dp)
         ) {
             AsyncImage(
-                model = story.avatarUrl ?: "https://via.placeholder.com/150",
+                model = story.avatarUrl ?: R.drawable.strip_logo,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
@@ -242,54 +293,91 @@ fun StoryCircle(story: Story, onClick: () -> Unit) {
 
 @kotlin.OptIn(androidx.media3.common.util.UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun VideoPage(video: Video, isFocused: Boolean, onLike: () -> Unit, onCommentClick: () -> Unit, onShareClick: () -> Unit, onDownloadClick: () -> Unit) {
+fun VideoPage(
+    video: Video,
+    exoPlayer: ExoPlayer,
+    isFocused: Boolean,
+    onLike: () -> Unit,
+    onCommentClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    onFollowClick: () -> Unit,
+    onSaveSound: () -> Unit
+) {
     val context = LocalContext.current
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            repeatMode = Player.REPEAT_MODE_ONE
-        }
-    }
-
-    LaunchedEffect(video.videoUrl) {
-        val mediaItem = MediaItem.fromUri(Uri.parse(video.videoUrl))
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-    }
-
-    LaunchedEffect(isFocused) {
-        if (isFocused) {
-            exoPlayer.play()
-        } else {
-            exoPlayer.pause()
-            exoPlayer.seekTo(0)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
-        }
-    }
+    var isDownloadMenuExpanded by remember { mutableStateOf(false) }
+    
+    // Heart animation on double tap
+    var showHeart by remember { mutableStateOf(false) }
+    
+    // Rotating music icon animation
+    val infiniteTransition = rememberInfiniteTransition(label = "music_rotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = {
-                PlayerView(context).apply {
-                    player = exoPlayer
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                }
-            },
-            modifier = Modifier.fillMaxSize().clickable {
-                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+        if (isFocused) {
+            AndroidView(
+                factory = {
+                    PlayerView(context).apply {
+                        player = exoPlayer
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(video.id) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (!video.liked) onLike()
+                                showHeart = true
+                            },
+                            onTap = {
+                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                            }
+                        )
+                    }
+            )
+        } else {
+            // Lazy loading preview with thumbnail
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Animated Heart on double tap
+        if (showHeart) {
+            Box(modifier = Modifier.align(Alignment.Center)) {
+                Icon(
+                    imageVector = Icons.Filled.Favorite,
+                    contentDescription = null,
+                    tint = Color.Red.copy(alpha = 0.8f),
+                    modifier = Modifier.size(100.dp)
+                )
             }
-        )
+            LaunchedEffect(showHeart) {
+                delay(800)
+                showHeart = false
+            }
+        }
 
         // Gradient overlay at bottom of video page to keep overlay text crisp
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.35f)
+                .fillMaxHeight(0.4f)
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
@@ -309,14 +397,56 @@ fun VideoPage(video: Video, isFocused: Boolean, onLike: () -> Unit, onCommentCli
                 .padding(start = 16.dp, end = 80.dp, bottom = 24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "@${video.username}", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "@${video.username}", 
+                    color = Color.White, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onProfileClick() }
+                )
                 if (video.isVerified) {
                     Spacer(modifier = Modifier.width(4.dp))
                     com.example.ui.components.VerifiedBadge(size = 18.dp)
                 }
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Surface(
+                    onClick = { 
+                        onFollowClick()
+                    },
+                    color = if (video.isFollowing) Color.Transparent else MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(4.dp),
+                    border = if (video.isFollowing) BorderStroke(1.dp, Color.White) else null,
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (video.isFollowing) "Abonné" else "S'abonner",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = video.description, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+            Text(text = video.description, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Audio Info
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "${video.audioTitle ?: "Son original"} - ${video.audioOwner ?: video.username}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 200.dp)
+                )
+            }
         }
 
         // Action Buttons Overlaid on the right
@@ -324,34 +454,136 @@ fun VideoPage(video: Video, isFocused: Boolean, onLike: () -> Unit, onCommentCli
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 24.dp, end = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            IconButton(onClick = onLike, modifier = Modifier.testTag("like_button")) {
-                Icon(
-                    imageVector = if (video.liked) Icons.Filled.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Like",
-                    tint = if (video.liked) Color.Red else Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
+            // Profile & Like
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    contentAlignment = Alignment.BottomCenter,
+                    modifier = Modifier.clickable { onProfileClick() }
+                ) {
+                    AsyncImage(
+                        model = video.avatarUrl ?: R.drawable.strip_logo,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, Color.White, CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                    if (!video.isFollowing) {
+                        IconButton(
+                            onClick = { 
+                                onFollowClick()
+                            },
+                            modifier = Modifier
+                                .offset(y = 10.dp)
+                                .size(20.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AddCircle,
+                                contentDescription = null,
+                                tint = Color.Red,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.White, CircleShape)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                IconButton(onClick = onLike, modifier = Modifier.testTag("like_button")) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = "Like",
+                        tint = if (video.liked) Color.Red else Color.White,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+                Text(text = formatCount(video.likes), color = Color.White, style = MaterialTheme.typography.labelSmall)
             }
-            Text(text = video.likes.toString(), color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            IconButton(onClick = onCommentClick) {
-                Icon(imageVector = Icons.Default.Message, contentDescription = "Comment", tint = Color.White, modifier = Modifier.size(32.dp))
-            }
-            Text(text = video.commentsCount.toString(), color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            IconButton(onClick = onShareClick) {
-                Icon(imageVector = Icons.Default.Share, contentDescription = "Share", tint = Color.White, modifier = Modifier.size(32.dp))
-            }
-            Text(text = video.sharesCount.toString(), color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Spacer(modifier = Modifier.height(16.dp))
 
-            IconButton(onClick = onDownloadClick) {
-                Icon(imageVector = Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(32.dp))
+            // Comment
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onCommentClick) {
+                    Icon(imageVector = Icons.Default.Message, contentDescription = "Comment", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+                Text(text = formatCount(video.commentsCount), color = Color.White, style = MaterialTheme.typography.labelSmall)
+            }
+
+            // Share
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onShareClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Reply, 
+                        contentDescription = "Share", 
+                        tint = Color.White, 
+                        modifier = Modifier.size(38.dp).graphicsLayer(scaleX = -1f)
+                    )
+                }
+                Text(text = formatCount(video.sharesCount), color = Color.White, style = MaterialTheme.typography.labelSmall)
+            }
+
+            // Download & Save Sound Menu
+            Box {
+                IconButton(onClick = { isDownloadMenuExpanded = true }) {
+                    Icon(imageVector = Icons.Default.Download, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+                DropdownMenu(
+                    expanded = isDownloadMenuExpanded,
+                    onDismissRequest = { isDownloadMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Enregistrer la vidéo") },
+                        leadingIcon = { Icon(Icons.Default.VideoFile, contentDescription = null) },
+                        onClick = {
+                            isDownloadMenuExpanded = false
+                            onDownloadClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Télécharger l'audio") },
+                        leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null) },
+                        onClick = {
+                            isDownloadMenuExpanded = false
+                            Toast.makeText(context, "Audio en cours de téléchargement...", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Copier le lien") },
+                        leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                        onClick = {
+                            isDownloadMenuExpanded = false
+                            Toast.makeText(context, "Lien copié !", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+            
+            // Rotating Record & Save Sound
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clickable { onSaveSound() }
+                    .graphicsLayer(rotationZ = rotation)
+                    .background(Color.DarkGray, CircleShape)
+                    .border(8.dp, Color.Black.copy(alpha = 0.8f), CircleShape)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = video.avatarUrl ?: R.drawable.strip_logo,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
     }
+}
+
+fun formatCount(count: Int): String {
+    return if (count >= 1000) "${String.format("%.1f", count / 1000f)}k" else count.toString()
 }

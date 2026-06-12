@@ -102,7 +102,7 @@ fun ChatListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Messagerie • CMO",
+                    text = "Messagerie • STRIP",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Black,
                         fontSize = 24.sp

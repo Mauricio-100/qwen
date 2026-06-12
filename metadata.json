@@ -1,5 +1,5 @@
 {
-  "name": "C.M.O Streaming",
+  "name": "STRIP",
   "description": "Video streaming and real-time messaging application.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

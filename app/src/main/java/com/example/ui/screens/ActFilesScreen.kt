@@ -37,6 +37,7 @@ import com.example.viewmodel.FeedViewModel
 import androidx.compose.material.icons.automirrored.filled.Comment
 import com.example.ui.components.FullscreenStoryViewer
 import com.example.ui.components.MarkdownText
+import com.example.R
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -169,7 +170,7 @@ fun ActFilesScreen(
                                     
                                     // Circular small avatar
                                     AsyncImage(
-                                        model = story.avatarUrl ?: "https://via.placeholder.com/150",
+                                        model = story.avatarUrl ?: R.drawable.strip_logo,
                                         contentDescription = "Avatar",
                                         modifier = Modifier
                                             .padding(6.dp)
@@ -277,7 +278,7 @@ fun ActFileItem(
 
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         AsyncImage(
-            model = file.avatarUrl ?: "https://via.placeholder.com/150",
+            model = file.avatarUrl ?: R.drawable.strip_logo,
             contentDescription = "Avatar",
             modifier = Modifier.size(48.dp).clip(CircleShape)
         )
@@ -365,7 +366,7 @@ fun ActFileItem(
                                     verticalAlignment = Alignment.Top
                                 ) {
                                     AsyncImage(
-                                        model = reply.avatarUrl ?: "https://via.placeholder.com/150",
+                                        model = reply.avatarUrl ?: R.drawable.strip_logo,
                                         contentDescription = null,
                                         modifier = Modifier
                                             .size(24.dp)

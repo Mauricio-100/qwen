@@ -52,12 +52,36 @@ fun PublishBottomSheet(
     // Story States
     var selectedStoryUri by remember { mutableStateOf<Uri?>(null) }
     var storyUrlInput by remember { mutableStateOf("") }
-    var selectedEffect by remember { mutableStateOf<String?>(null) }
     
     // ActFile States
     var actFileContent by remember { mutableStateOf("") }
     
+    // Audio States
+    var audioTitle by remember { mutableStateOf("Son original") }
+    var audioOwner by remember { mutableStateOf("") }
+    
+    // Effect States
+    val effects = listOf(
+        "Normal" to null,
+        "Cyberpunk" to "cyberpunk",
+        "Vintage" to "vintage",
+        "Sketch" to "sketch",
+        "Cartoon" to "cartoon",
+        "Vignette" to "vignette"
+    )
+    var selectedEffect by remember { mutableStateOf<String?>(null) }
+    
     // Picker Launchers
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            audioTitle = "Musique perso"
+            audioOwner = "Ma bibliothèque"
+            Toast.makeText(context, "Audio de l'appareil sélectionné !", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -210,7 +234,7 @@ fun PublishBottomSheet(
                                 value = videoDescription,
                                 onValueChange = { videoDescription = it },
                                 label = { Text("Légende / Description") },
-                                placeholder = { Text("Quoi de neuf ? #tendance #cmo") },
+                                placeholder = { Text("Quoi de neuf ? #tendance #strip") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 maxLines = 3
@@ -236,6 +260,72 @@ fun PublishBottomSheet(
                                     shape = RoundedCornerShape(12.dp),
                                     maxLines = 1
                                 )
+                            }
+
+                            // Audio Selection Section
+                            Text(
+                                text = "Paramètres Audio :",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = audioTitle, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    if (audioOwner.isNotBlank()) {
+                                        Text(text = "par $audioOwner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                IconButton(onClick = {
+                                    audioPickerLauncher.launch("audio/*")
+                                }) {
+                                    Icon(Icons.Default.LibraryMusic, contentDescription = "Pick Audio", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+
+                            // Suggestions of existing audio (simulated from current videos)
+                            val feedVideos by feedViewModel.videos.collectAsState()
+                            if (feedVideos.isNotEmpty()) {
+                                Text(text = "Utiliser un son existant :", style = MaterialTheme.typography.labelSmall)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(feedVideos.take(5)) { v ->
+                                        AssistChip(
+                                            onClick = {
+                                                audioTitle = v.audioTitle ?: "Son original"
+                                                audioOwner = v.username
+                                            },
+                                            label = { Text(v.audioTitle ?: v.username) },
+                                            leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Effects Selection
+                            Text(
+                                text = "Appliquer un Effet :",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(effects) { (name, id) ->
+                                    FilterChip(
+                                        selected = selectedEffect == id,
+                                        onClick = { selectedEffect = id },
+                                        label = { Text(name) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -373,7 +463,10 @@ fun PublishBottomSheet(
                                 feedViewModel.uploadAndPublishVideo(
                                     context, 
                                     selectedVideoUri!!, 
-                                    videoDescription.ifBlank { "Nouvelle vidéo 📹" }
+                                    videoDescription.ifBlank { "Nouvelle vidéo 📹" },
+                                    audioTitle,
+                                    audioOwner,
+                                    selectedEffect
                                 ) { success, errorMsg ->
                                     if (success) {
                                         Toast.makeText(context, "Vidéo publiée avec succès !", Toast.LENGTH_LONG).show()

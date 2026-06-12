@@ -3,13 +3,13 @@ package com.example.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.models.ActFile
-import com.example.data.repository.CmoRepository
+import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class ActFileViewModel(private val repository: CmoRepository) : ViewModel() {
+class ActFileViewModel(private val repository: StripRepository) : ViewModel() {
     private val _actFiles = MutableStateFlow<List<ActFile>>(emptyList())
     val actFiles: StateFlow<List<ActFile>> = _actFiles.asStateFlow()
 

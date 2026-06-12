@@ -3,7 +3,8 @@ package com.example.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.models.User
-import com.example.data.repository.CmoRepository
+import com.example.data.models.Video
+import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,13 +13,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
-class ProfileViewModel(private val repository: CmoRepository) : ViewModel() {
+class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _userProfile = MutableStateFlow<User?>(null)
     val userProfile: StateFlow<User?> = _userProfile.asStateFlow()
 
-    private val _myVideos = MutableStateFlow<List<com.example.data.models.Video>>(emptyList())
-    val myVideos: StateFlow<List<com.example.data.models.Video>> = _myVideos.asStateFlow()
+    private val _myVideos = MutableStateFlow<List<Video>>(emptyList())
+    val myVideos: StateFlow<List<Video>> = _myVideos.asStateFlow()
 
     private val _serverStats = MutableStateFlow<Map<String, Any>?>(null)
     val serverStats = _serverStats.asStateFlow()
@@ -56,6 +57,33 @@ class ProfileViewModel(private val repository: CmoRepository) : ViewModel() {
         }
     }
 
+    fun loadUserVideos(userId: String) {
+        viewModelScope.launch {
+            try {
+                _myVideos.value = repository.apiService.getUserVideos(userId)
+            } catch (e: Exception) {}
+        }
+    }
+
+    private val _userSounds = MutableStateFlow<List<Video>>(emptyList())
+    val userSounds: StateFlow<List<Video>> = _userSounds.asStateFlow()
+
+    fun loadUserSounds(userId: String) {
+        viewModelScope.launch {
+            try {
+                _userSounds.value = repository.apiService.getUserSounds(userId)
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun loadMySavedSounds() {
+        viewModelScope.launch {
+            try {
+                _userSounds.value = repository.apiService.getSavedSounds()
+            } catch (e: Exception) {}
+        }
+    }
+
     fun updateProfile(updates: Map<String, String>) {
          viewModelScope.launch {
              try {
@@ -89,6 +117,16 @@ class ProfileViewModel(private val repository: CmoRepository) : ViewModel() {
             } catch (e: Exception) {
                // Handle error
             }
+        }
+    }
+
+    fun followUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                repository.apiService.followUser(userId)
+                // Refresh profile to see updated follower count
+                loadUserProfile(userId)
+            } catch (e: Exception) {}
         }
     }
 

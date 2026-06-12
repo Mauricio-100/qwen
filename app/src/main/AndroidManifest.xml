@@ -13,7 +13,12 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <attribution
+        android:tag="attributionTag"
+        android:label="@string/app_name" />
+
     <application
+        android:attributionTags="attributionTag"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -23,6 +28,7 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.MyApplication">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

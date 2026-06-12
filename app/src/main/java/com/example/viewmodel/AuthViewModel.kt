@@ -2,13 +2,13 @@ package com.example.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.repository.CmoRepository
+import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AuthViewModel(private val repository: CmoRepository) : ViewModel() {
+class AuthViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow<AuthState>(AuthState.Idle)
     val uiState: StateFlow<AuthState> = _uiState.asStateFlow()

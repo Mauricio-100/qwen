@@ -75,7 +75,7 @@ object GeminiHelper {
     }
 
     suspend fun draftSmartReplies(lastMessage: String): List<String> {
-        val prompt = "You are a professional assistant for a modern visual social network app called CMO. " +
+        val prompt = "You are a professional assistant for a modern visual social network app called STRIP. " +
                 "Given the last message received from a friend, generate exactly three short, natural, and friendly conversational reply suggestions in French. " +
                 "Provide them ONLY as a plain, comma-separated list without quotes, numbers, or bullet points. " +
                 "Examples: \n" +

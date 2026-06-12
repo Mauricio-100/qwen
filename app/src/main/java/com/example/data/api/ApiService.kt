@@ -47,17 +47,29 @@ interface ApiService {
     suspend fun uploadVideo(
         @Part video: MultipartBody.Part,
         @Part("description") description: RequestBody,
-        @Part("is_public") isPublic: RequestBody
+        @Part("is_public") isPublic: RequestBody,
+        @Part("audio_title") audioTitle: RequestBody? = null,
+        @Part("audio_owner") audioOwner: RequestBody? = null,
+        @Part("effect") effect: RequestBody? = null
     ): Video
 
     @GET("api/users/me")
     suspend fun getMyProfile(): User
 
+    @POST("api/users/{userId}/follow")
+    suspend fun followUser(@Path("userId") userId: String): Map<String, Any>
+
+    @GET("api/users/{userId}/sounds")
+    suspend fun getUserSounds(@Path("userId") userId: String): List<Video> // Videos identified as having original sound
+
+    @POST("api/sounds/{videoId}/save")
+    suspend fun saveSound(@Path("videoId") videoId: String): Map<String, Any>
+
+    @GET("api/users/me/saved-sounds")
+    suspend fun getSavedSounds(): List<Video>
+
     @GET("api/users/{id}")
     suspend fun getUserProfile(@Path("id") id: String): User
-
-    @POST("api/users/{id}/follow")
-    suspend fun followUser(@Path("id") id: String): Map<String, Any>
 
     @GET("api/messages/conversations")
     suspend fun getConversations(): List<Conversation>

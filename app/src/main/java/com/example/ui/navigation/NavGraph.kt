@@ -47,6 +47,7 @@ object Routes {
     const val CHAT = "chat"
     const val CHAT_DETAIL = "chat_detail"
     const val PROFILE = "profile"
+    const val USER_PROFILE = "user_profile"
     const val ACTFILES = "actfiles"
     const val VERIFICATION = "verification"
 }
@@ -86,7 +87,7 @@ fun MainApp(
                     })
                 }
                 composable(Routes.FEED) {
-                    FeedScreen(viewModel = feedViewModel)
+                    FeedScreen(viewModel = feedViewModel, navController = navController)
                 }
                 composable(Routes.CHAT) {
                     ChatListScreen(
@@ -107,6 +108,14 @@ fun MainApp(
                 composable(Routes.PROFILE) {
                     ProfileScreen(
                         viewModel = profileViewModel,
+                        onNavigateToVerification = { navController.navigate(Routes.VERIFICATION) }
+                    )
+                }
+                composable("${Routes.USER_PROFILE}/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+                    ProfileScreen(
+                        viewModel = profileViewModel,
+                        userId = userId,
                         onNavigateToVerification = { navController.navigate(Routes.VERIFICATION) }
                     )
                 }

@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.net.Uri
+import com.example.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -210,7 +211,7 @@ fun FullscreenStoryViewer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
-                        model = currentStory.avatarUrl ?: "https://via.placeholder.com/150",
+                        model = currentStory.avatarUrl ?: R.drawable.strip_logo,
                         contentDescription = "Story avatar",
                         modifier = Modifier
                             .size(36.dp)
@@ -294,7 +295,7 @@ fun FullscreenStoryViewer(
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     AsyncImage(
-                                        model = comment.avatarUrl ?: "https://via.placeholder.com/150",
+                                        model = comment.avatarUrl ?: R.drawable.strip_logo,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp).clip(CircleShape)
                                     )

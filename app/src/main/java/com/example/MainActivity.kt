@@ -11,7 +11,7 @@ import com.example.data.api.RetrofitClient
 import com.example.data.api.WebSocketManager
 import com.example.data.local.AppDatabase
 import com.example.data.local.PreferencesManager
-import com.example.data.repository.CmoRepository
+import com.example.data.repository.StripRepository
 import com.example.ui.navigation.MainApp
 import com.example.ui.navigation.Routes
 import com.example.ui.theme.MyApplicationTheme
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var db: AppDatabase
     private lateinit var retrofitClient: RetrofitClient
     private lateinit var wsManager: WebSocketManager
-    private lateinit var repository: CmoRepository
+    private lateinit var repository: StripRepository
     private lateinit var notificationHelper: NotificationHelper
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -58,12 +58,12 @@ class MainActivity : ComponentActivity() {
         }
 
         prefs = PreferencesManager(this)
-        db = Room.databaseBuilder(this, AppDatabase::class.java, "cmo_db").build()
+        db = Room.databaseBuilder(this, AppDatabase::class.java, "strip_db").build()
         retrofitClient = RetrofitClient(this, prefs)
         wsManager = WebSocketManager(OkHttpClient())
         notificationHelper = NotificationHelper(this)
         
-        repository = CmoRepository(
+        repository = StripRepository(
             apiService = retrofitClient.apiService,
             wsManager = wsManager,
             db = db,
