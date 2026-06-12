@@ -6,8 +6,8 @@ import java.util.Date
 
 @JsonClass(generateAdapter = true)
 data class User(
-    val id: String,
-    val username: String,
+    val id: String = "",
+    val username: String = "",
     @Json(name = "avatar_url") val avatarUrl: String? = null,
     val bio: String? = null,
     val email: String? = null,
@@ -25,17 +25,17 @@ data class User(
 
 @JsonClass(generateAdapter = true)
 data class Video(
-    val id: String,
-    @Json(name = "video_url") val videoUrl: String,
-    @Json(name = "thumbnail_url") val thumbnailUrl: String,
-    val description: String,
-    val likes: Int,
-    val views: Int,
+    val id: String = "",
+    @Json(name = "video_url") val videoUrl: String = "",
+    @Json(name = "thumbnail_url") val thumbnailUrl: String = "",
+    val description: String = "",
+    val likes: Int = 0,
+    val views: Int = 0,
     @Json(name = "comments_count") val commentsCount: Int = 0,
     @Json(name = "shares_count") val sharesCount: Int = 0,
     val duration: Float? = null,
-    @Json(name = "user_id") val userId: String,
-    val username: String,
+    @Json(name = "user_id") val userId: String = "",
+    val username: String = "",
     @Json(name = "avatar_url") val avatarUrl: String? = null,
     @Json(name = "is_verified") val isVerified: Boolean = false,
     val liked: Boolean = false
@@ -92,13 +92,13 @@ data class Conversation(
 
 @JsonClass(generateAdapter = true)
 data class ActFile(
-    val id: String,
-    val content: String,
-    @Json(name = "likes_count") val likesCount: Int,
-    @Json(name = "views_count") val viewsCount: Int,
+    val id: String = "",
+    val content: String = "",
+    @Json(name = "likes_count") val likesCount: Int = 0,
+    @Json(name = "views_count") val viewsCount: Int = 0,
     @Json(name = "replies_count") val repliesCount: Int = 0,
-    @Json(name = "user_id") val userId: String,
-    val username: String,
+    @Json(name = "user_id") val userId: String = "",
+    val username: String = "",
     @Json(name = "avatar_url") val avatarUrl: String? = null,
     @Json(name = "is_verified") val isVerified: Boolean = false,
     val liked: Boolean = false
@@ -136,13 +136,13 @@ data class VerificationStatusResponse(
 
 @JsonClass(generateAdapter = true)
 data class Story(
-    val id: String,
-    @Json(name = "user_id") val userId: String,
-    val username: String,
+    val id: String = "",
+    @Json(name = "user_id") val userId: String = "",
+    val username: String = "",
     @Json(name = "avatar_url") val avatarUrl: String? = null,
-    @Json(name = "media_url") val mediaUrl: String,
+    @Json(name = "media_url") val mediaUrl: String = "",
     @Json(name = "is_verified") val isVerified: Boolean = false,
-    @Json(name = "created_at") val createdAt: String
+    @Json(name = "created_at") val createdAt: String = ""
 )
 
 @JsonClass(generateAdapter = true)

@@ -111,6 +111,19 @@ interface ApiService {
     @GET("api/stories")
     suspend fun getStories(): List<com.example.data.models.Story>
 
+    @Multipart
+    @POST("api/stories")
+    suspend fun uploadStory(
+        @Part file: MultipartBody.Part,
+        @Part("effect") effect: RequestBody? = null
+    ): Map<String, Any>
+
+    @GET("api/stories/{id}/comments")
+    suspend fun getStoryComments(@Path("id") storyId: String): List<com.example.data.models.VideoComment>
+
+    @POST("api/stories/{id}/comments")
+    suspend fun addStoryComment(@Path("id") storyId: String, @Body content: Map<String, String>): com.example.data.models.VideoComment
+
     @GET("api/admin/stats")
     suspend fun getServerStats(): Map<String, Any>
 

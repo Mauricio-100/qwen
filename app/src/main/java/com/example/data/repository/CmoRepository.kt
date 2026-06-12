@@ -53,4 +53,18 @@ class CmoRepository(
     fun disconnectWebSocket() {
         wsManager.disconnect()
     }
+
+    suspend fun insertLocalVideo(video: Video) {
+        db.videoDao().insertVideos(listOf(
+            com.example.data.local.CachedVideo(
+                id = video.id,
+                videoUrl = video.videoUrl,
+                thumbnailUrl = video.thumbnailUrl,
+                description = video.description,
+                username = video.username,
+                likes = video.likes,
+                views = video.views
+            )
+        ))
+    }
 }

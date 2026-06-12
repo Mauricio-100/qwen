@@ -17,6 +17,12 @@ import com.example.ui.navigation.Routes
 import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.AuthViewModel
 import com.example.viewmodel.FeedViewModel
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 
@@ -65,13 +71,6 @@ class MainActivity : ComponentActivity() {
             notificationHelper = notificationHelper
         )
 
-        // Check if user is logged in
-        val token = runBlocking { prefs.getToken() }
-        val startDestination = if (token.isNullOrEmpty()) Routes.AUTH else Routes.FEED
-        if (!token.isNullOrEmpty()) {
-            runBlocking { repository.connectWebSocket() }
-        }
-
         val factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(AuthViewModel::class.java)) return AuthViewModel(repository) as T
@@ -83,22 +82,35 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val authViewModel = ViewModelProvider(this, factory)[AuthViewModel::class.java]
-        val feedViewModel = ViewModelProvider(this, factory)[FeedViewModel::class.java]
-        val chatViewModel = ViewModelProvider(this, factory)[com.example.viewmodel.ChatViewModel::class.java]
-        val profileViewModel = ViewModelProvider(this, factory)[com.example.viewmodel.ProfileViewModel::class.java]
-        val actFileViewModel = ViewModelProvider(this, factory)[com.example.viewmodel.ActFileViewModel::class.java]
-
+        // Initial content while loading state
         setContent {
             MyApplicationTheme {
-                MainApp(
-                    authViewModel = authViewModel,
-                    feedViewModel = feedViewModel,
-                    chatViewModel = chatViewModel,
-                    profileViewModel = profileViewModel,
-                    actFileViewModel = actFileViewModel,
-                    startDestination = startDestination
-                )
+                var startDestination by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(Unit) {
+                    val token = prefs.getToken()
+                    if (!token.isNullOrEmpty()) {
+                        repository.connectWebSocket()
+                        startDestination = Routes.FEED
+                    } else {
+                        startDestination = Routes.AUTH
+                    }
+                }
+
+                startDestination?.let { dest ->
+                    MainApp(
+                        authViewModel = ViewModelProvider(this@MainActivity, factory)[AuthViewModel::class.java],
+                        feedViewModel = ViewModelProvider(this@MainActivity, factory)[FeedViewModel::class.java],
+                        chatViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ChatViewModel::class.java],
+                        profileViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ProfileViewModel::class.java],
+                        actFileViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ActFileViewModel::class.java],
+                        startDestination = dest
+                    )
+                } ?: run {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
             }
         }
     }

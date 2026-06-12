@@ -79,4 +79,12 @@ class ActFileViewModel(private val repository: CmoRepository) : ViewModel() {
             } catch (e: Exception) {}
         }
     }
+
+    fun incrementActFileViews(id: String) {
+        _actFiles.value = _actFiles.value.map {
+            if (it.id == id) {
+                it.copy(viewsCount = it.viewsCount + 1)
+            } else it
+        }
+    }
 }

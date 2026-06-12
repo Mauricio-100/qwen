@@ -1,6 +1,17 @@
 package com.example.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -9,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -51,56 +63,71 @@ fun MainApp(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    var showPublishBottomSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
             if (currentRoute != Routes.AUTH && currentRoute?.startsWith(Routes.CHAT_DETAIL) == false) {
-                BottomNavigationBar(navController, currentRoute)
+                BottomNavigationBar(navController, currentRoute, onPublishClick = { showPublishBottomSheet = true })
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Routes.AUTH) {
-                AuthScreen(viewModel = authViewModel, onLoginSuccess = {
-                    navController.navigate(Routes.FEED) {
-                        popUpTo(Routes.AUTH) { inclusive = true }
-                    }
-                })
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(Routes.AUTH) {
+                    AuthScreen(viewModel = authViewModel, onLoginSuccess = {
+                        navController.navigate(Routes.FEED) {
+                            popUpTo(Routes.AUTH) { inclusive = true }
+                        }
+                    })
+                }
+                composable(Routes.FEED) {
+                    FeedScreen(viewModel = feedViewModel)
+                }
+                composable(Routes.CHAT) {
+                    ChatListScreen(
+                        viewModel = chatViewModel,
+                        feedViewModel = feedViewModel,
+                        onNavigateToChat = { userId ->
+                            navController.navigate("${Routes.CHAT_DETAIL}/$userId")
+                        }
+                    )
+                }
+                composable("${Routes.CHAT_DETAIL}/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+                    ChatDetailScreen(viewModel = chatViewModel, userId = userId, onNavigateBack = { navController.popBackStack() })
+                }
+                composable(Routes.ACTFILES) {
+                    ActFilesScreen(viewModel = actFileViewModel, feedViewModel = feedViewModel)
+                }
+                composable(Routes.PROFILE) {
+                    ProfileScreen(
+                        viewModel = profileViewModel,
+                        onNavigateToVerification = { navController.navigate(Routes.VERIFICATION) }
+                    )
+                }
+                composable(Routes.VERIFICATION) {
+                    com.example.ui.screens.VerificationScreen(viewModel = profileViewModel)
+                }
             }
-            composable(Routes.FEED) {
-                FeedScreen(viewModel = feedViewModel)
-            }
-            composable(Routes.CHAT) {
-                ChatListScreen(viewModel = chatViewModel, onNavigateToChat = { userId ->
-                    navController.navigate("${Routes.CHAT_DETAIL}/$userId")
-                })
-            }
-            composable("${Routes.CHAT_DETAIL}/{userId}") { backStackEntry ->
-                val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
-                ChatDetailScreen(viewModel = chatViewModel, userId = userId)
-            }
-            composable(Routes.ACTFILES) {
-                ActFilesScreen(viewModel = actFileViewModel)
-            }
-            composable(Routes.PROFILE) {
-                ProfileScreen(
-                    viewModel = profileViewModel,
-                    onNavigateToVerification = { navController.navigate(Routes.VERIFICATION) }
+            
+            if (showPublishBottomSheet) {
+                com.example.ui.components.PublishBottomSheet(
+                    feedViewModel = feedViewModel,
+                    actFileViewModel = actFileViewModel,
+                    onDismiss = { showPublishBottomSheet = false }
                 )
-            }
-            composable(Routes.VERIFICATION) {
-                com.example.ui.screens.VerificationScreen(viewModel = profileViewModel)
             }
         }
     }
 }
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController, currentRoute: String?) {
+fun BottomNavigationBar(navController: NavHostController, currentRoute: String?, onPublishClick: () -> Unit) {
     NavigationBar {
         NavigationBarItem(
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
@@ -117,6 +144,26 @@ fun BottomNavigationBar(navController: NavHostController, currentRoute: String?)
             onClick = {
                 if (currentRoute != Routes.ACTFILES) navController.navigate(Routes.ACTFILES)
             }
+        )
+        NavigationBarItem(
+            icon = { 
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Publier", tint = Color.White)
+                }
+            },
+            label = { Text("Créer") },
+            selected = false,
+            onClick = onPublishClick
         )
         NavigationBarItem(
             icon = { Icon(Icons.Default.Email, contentDescription = "Chat") },

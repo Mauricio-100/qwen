@@ -14,6 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.viewmodel.ProfileViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -48,6 +51,16 @@ fun ProfileScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box {
+                    val avatarPickerLauncher = rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+                    ) { uri ->
+                        if (uri != null) {
+                            // In a real app, you'd upload this to a server
+                            // For now, we update the local state if the API supports it or just show local preview
+                            // viewModel.uploadAvatar(context, uri)
+                        }
+                    }
+
                     AsyncImage(
                         model = user.avatarUrl ?: "https://via.placeholder.com/150",
                         contentDescription = "Avatar",
@@ -56,7 +69,11 @@ fun ProfileScreen(
                             .clip(CircleShape)
                     )
                     IconButton(
-                        onClick = { /* MOCK: open image picker */ },
+                        onClick = { 
+                            avatarPickerLauncher.launch(
+                                androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
                         modifier = Modifier.align(Alignment.BottomEnd).size(32.dp)
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit Avatar", tint = MaterialTheme.colorScheme.primary)
