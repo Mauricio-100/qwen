@@ -54,4 +54,4 @@ jobs:
           body_path: release_body.txt
           files: app-debug.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GB_TOKEN }}
