@@ -40,6 +40,15 @@ class StripRepository(
         }
     }
 
+    suspend fun getFollowingFeed(cursor: String? = null): Result<List<Video>> {
+        return try {
+            val response = apiService.getFollowingFeed(cursor = cursor)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun getCachedFeed(): Flow<List<CachedVideo>> {
         return db.videoDao().getAllVideos()
     }

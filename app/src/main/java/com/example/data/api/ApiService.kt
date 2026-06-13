@@ -36,6 +36,12 @@ interface ApiService {
         @Query("limit") limit: Int = 10
     ): List<Video>
 
+    @GET("api/feed/following")
+    suspend fun getFollowingFeed(
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int = 10
+    ): List<Video>
+
     @POST("api/videos/{id}/like")
     suspend fun likeVideo(@Path("id") videoId: String): Map<String, Boolean>
 

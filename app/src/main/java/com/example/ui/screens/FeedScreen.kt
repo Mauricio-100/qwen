@@ -53,8 +53,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.example.data.models.Video
-import com.example.data.models.Story
-import com.example.ui.components.FullscreenStoryViewer
 import com.example.viewmodel.FeedViewModel
 import kotlinx.coroutines.delay
 
@@ -66,27 +64,17 @@ import com.example.ui.navigation.Routes
 @Composable
 fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
     val videos by viewModel.videos.collectAsState()
+    val feedType by viewModel.feedType.collectAsState()
     val pagerState = rememberPagerState(pageCount = { videos.size })
     var showCommentsFor by remember { mutableStateOf<String?>(null) }
     val commentsByVideo by viewModel.videoComments.collectAsState()
     
-    // Stories Integration
-    val stories by viewModel.stories.collectAsState()
-    var activeStoryIndex by remember { mutableIntStateOf(-1) }
-
     // UI Modal States
 
     // Optimized Single Shared ExoPlayer for the entire feed
     val context = LocalContext.current
-    val attributionContext = remember(context) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            context.createAttributionContext("audio")
-        } else {
-            context
-        }
-    }
     val sharedExoPlayer = remember {
-        ExoPlayer.Builder(attributionContext).build().apply {
+        ExoPlayer.Builder(context.applicationContext).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
@@ -112,15 +100,17 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        if (videos.isEmpty()) {
+        if (videos.isEmpty() && !viewModel.isLoading.collectAsState().value) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                Text("Aucune vidéo...", color = Color.White)
             }
-        } else {
-            VerticalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
+        } 
+        
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            if (page < videos.size) {
                 val video = videos[page]
                 VideoPage(
                     video = video,
@@ -162,56 +152,34 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                     }
                 )
             }
-
-            // Top Overlay for Stories
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(vertical = 12.dp)
-            ) {
-                if (stories.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        itemsIndexed(stories) { index, story ->
-                            StoryCircle(
-                                story = story,
-                                onClick = { activeStoryIndex = index }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Unchanged media details layout without top-bar stories row
-
-            if (showCommentsFor != null) {
-                ModalBottomSheet(onDismissRequest = { showCommentsFor = null }) {
-                    CommentsSheet(
-                        comments = commentsByVideo[showCommentsFor] ?: emptyList(),
-                        onAddComment = { content ->
-                            viewModel.addComment(showCommentsFor!!, content)
-                        }
-                    )
-                }
-            }
         }
 
-        // End of dialog overlays
-        if (activeStoryIndex in stories.indices) {
-            FullscreenStoryViewer(
-                stories = stories,
-                initialIndex = activeStoryIndex,
-                onAddComment = { id, content -> viewModel.addStoryComment(id, content) },
-                onIncrementView = { id -> viewModel.incrementStoryView(id) },
-                commentsProvider = { id -> viewModel.storyComments.collectAsState().value[id] ?: emptyList() },
-                viewsProvider = { id -> viewModel.storyViews.collectAsState().value[id] ?: viewModel.getStoryViews(id) },
-                onDismiss = { activeStoryIndex = -1 }
-            )
+        TabRow(
+            selectedTabIndex = if (feedType == "general") 0 else 1,
+            containerColor = Color.Transparent,
+            contentColor = Color.White,
+            indicator = { TabRowDefaults.SecondaryIndicator(color = Color.White) },
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp)
+        ) {
+            Tab(selected = feedType == "general", onClick = { viewModel.setFeedType("general") }, text = { Text("Pour toi") })
+            Tab(selected = feedType == "following", onClick = { viewModel.setFeedType("following") }, text = { Text("Abonnements") })
+        }
+
+        if (viewModel.isLoading.collectAsState().value) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        
+        if (showCommentsFor != null) {
+            ModalBottomSheet(onDismissRequest = { showCommentsFor = null }) {
+                CommentsSheet(
+                    comments = commentsByVideo[showCommentsFor] ?: emptyList(),
+                    onAddComment = { content ->
+                        viewModel.addComment(showCommentsFor!!, content)
+                    }
+                )
+            }
         }
     }
 }
@@ -255,46 +223,7 @@ fun CommentsSheet(comments: List<com.example.data.models.VideoComment>, onAddCom
     }
 }
 
-@Composable
-fun StoryCircle(story: Story, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(72.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(68.dp)
-                .border(
-                    width = 2.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
-                    ),
-                    shape = CircleShape
-                )
-                .padding(3.dp)
-        ) {
-            AsyncImage(
-                model = story.avatarUrl ?: R.drawable.strip_logo,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = story.username,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
-        )
-    }
-}
+
 
 @kotlin.OptIn(androidx.media3.common.util.UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -314,6 +243,22 @@ fun VideoPage(
 ) {
     val context = LocalContext.current
     var isDownloadMenuExpanded by remember { mutableStateOf(false) }
+    
+    // Playback control states
+    var isPlaying by remember { mutableStateOf(exoPlayer.isPlaying) }
+    var currentPosition by remember { mutableLongStateOf(exoPlayer.currentPosition) }
+    var playerDuration by remember { mutableLongStateOf(exoPlayer.duration) }
+    
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            while (true) {
+                isPlaying = exoPlayer.isPlaying
+                currentPosition = exoPlayer.currentPosition
+                playerDuration = exoPlayer.duration.coerceAtLeast(1L)
+                delay(500)
+            }
+        }
+    }
     
     // Heart animation on double tap
     var showHeart by remember { mutableStateOf(false) }
@@ -347,13 +292,59 @@ fun VideoPage(
                             onDoubleTap = {
                                 if (!video.liked) onLike()
                                 showHeart = true
-                            },
-                            onTap = {
-                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
                             }
                         )
                     }
             )
+            
+            // Playback Controls Overlay
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp).fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                // Seek Bar
+                val safeDuration = playerDuration.coerceAtLeast(1L)
+                Slider(
+                    value = currentPosition.coerceIn(0L, safeDuration).toFloat(),
+                    onValueChange = { exoPlayer.seekTo(it.toLong()) },
+                    valueRange = 0f..safeDuration.toFloat(),
+                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
+                )
+                
+                // Play/Pause & Volume
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    IconButton(onClick = { if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
+                        Icon(
+                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = Color.White
+                        )
+                    }
+                    
+                    var volume by remember { mutableFloatStateOf(exoPlayer.volume) }
+                    Slider(
+                        value = volume,
+                        onValueChange = { 
+                            volume = it
+                            exoPlayer.volume = it
+                        },
+                        modifier = Modifier.width(100.dp),
+                        colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
+                    )
+                    
+                    // Quality Selector
+                    var showQualityMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showQualityMenu = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Quality", tint = Color.White)
+                        }
+                        DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
+                            DropdownMenuItem(text = { Text("360p") }, onClick = { showQualityMenu = false })
+                            DropdownMenuItem(text = { Text("720p") }, onClick = { showQualityMenu = false })
+                            DropdownMenuItem(text = { Text("1080p") }, onClick = { showQualityMenu = false })
+                        }
+                    }
+                }
+            }
         } else {
             // Lazy loading preview with thumbnail
             AsyncImage(

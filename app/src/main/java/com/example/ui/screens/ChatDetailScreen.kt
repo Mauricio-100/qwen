@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +45,28 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
+fun TypingIndicator() {
+    val transition = rememberInfiniteTransition(label = "typing")
+    val dotOffset by transition.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(400),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dots"
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)) {
+        Text(
+            text = "[▪︎▪︎•••▪︎▪︎]",
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.offset(y = dotOffset.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
 fun ChatDetailScreen(
     viewModel: ChatViewModel,
     userId: String,
@@ -50,9 +78,30 @@ fun ChatDetailScreen(
     val currentUsername by viewModel.currentUsername.collectAsState()
     val reactions by viewModel.messageReactions.collectAsState()
     val selectedWallpaper by viewModel.selectedWallpaper.collectAsState()
+    val isTyping by viewModel.isTyping.collectAsState()
 
     var currentMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse_active")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulseScale"
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulseAlpha"
+    )
 
     // Sheets & Dialog states
     var showWallpaperDialog by remember { mutableStateOf(false) }
@@ -62,7 +111,13 @@ fun ChatDetailScreen(
     var activeReactionMessageId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(userId) {
-        viewModel.loadMessages(userId)
+        viewModel.setActiveChat(userId)
+    }
+
+    DisposableEffect(userId) {
+        onDispose {
+            viewModel.setActiveChat(null)
+        }
     }
 
     // Identify current active interlocutor details
@@ -149,11 +204,35 @@ fun ChatDetailScreen(
                                 }
                             }
                             
-                            Text(
-                                text = if (activeInterlocutor?.isOnline == true) "En ligne actuellement" else "Hors ligne",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (activeInterlocutor?.isOnline == true) Color(0xFF2ECC71) else Color.Gray
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Pulsing green/gray dot for WebSocket connectivity status
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(12.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp * pulseScale)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (activeInterlocutor?.isOnline == true) Color(0xFF2ECC71).copy(alpha = pulseAlpha)
+                                                else Color.Gray.copy(alpha = pulseAlpha)
+                                            )
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (activeInterlocutor?.isOnline == true) Color(0xFF2ECC71)
+                                                else Color.Gray
+                                            )
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (activeInterlocutor?.isOnline == true) "Temps Réel • En ligne" else "Temps Réel • Hors ligne",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                                    color = if (activeInterlocutor?.isOnline == true) Color(0xFF2ECC71) else Color.Gray
+                                )
+                            }
                         }
                     }
                 },
@@ -193,6 +272,9 @@ fun ChatDetailScreen(
                         .padding(horizontal = 16.dp),
                     reverseLayout = true
                 ) {
+                    if (isTyping) {
+                        item { TypingIndicator() }
+                    }
                     // Let's add a spacing placeholder at the very end (meaning bottom of messages list)
                     item { Spacer(modifier = Modifier.height(8.dp)) }
 
@@ -488,16 +570,15 @@ fun MessageRowBlock(
                 Spacer(modifier = Modifier.height(2.dp))
             }
 
+            val bubbleShape = RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (isMe) 20.dp else 4.dp,
+                bottomEnd = if (isMe) 4.dp else 20.dp
+            )
             Box(
                 modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = if (isMe) 16.dp else 4.dp,
-                            bottomEnd = if (isMe) 4.dp else 16.dp
-                        )
-                    )
+                    .clip(bubbleShape)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongClick
@@ -505,19 +586,29 @@ fun MessageRowBlock(
                     .background(
                         brush = if (isMe) {
                             Brush.horizontalGradient(
-                                colors = listOf(Color(0xFFFF4081), MaterialTheme.colorScheme.primary)
+                                colors = listOf(Color(0xFF4F46E5), Color(0xFF7C3AED)) // Indigo to Violet
                             )
                         } else {
-                            Brush.linearGradient(
-                                colors = listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0.85f))
-                            )
+                            if (themeOnBackground == Color.Black) {
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFFE5E7EB), Color(0xFFF3F4F6))
+                                )
+                            } else {
+                                Brush.linearGradient(
+                                    colors = listOf(Color.White.copy(alpha = 0.92f), Color.White.copy(alpha = 0.86f))
+                                )
+                            }
                         },
                     )
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .widthIn(max = 280.dp)
+                    .border(
+                        width = 1.dp,
+                        color = if (isMe) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.05f),
+                        shape = bubbleShape
+                    )
+                    .padding(horizontal = 16.dp, vertical = 11.dp)
+                    .widthIn(max = 290.dp)
             ) {
                 Column {
-                    // Utilise notre composant complet MarkdownText
                     MarkdownText(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
@@ -525,6 +616,29 @@ fun MessageRowBlock(
                             color = if (isMe) Color.White else Color.Black
                         )
                     )
+                    if (isMe) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.align(Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (message.id.startsWith("local_")) {
+                                Icon(
+                                    imageVector = Icons.Default.Done,
+                                    contentDescription = "Envoi en cours via WebSocket",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.DoneAll,
+                                    contentDescription = "Distribué et enregistré via WebSocket",
+                                    tint = Color(0xFF38BDF8), // Light Cyan
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

@@ -118,6 +118,13 @@ class MainActivity : ComponentActivity() {
                                         title = "STRIP",
                                         message = "Vous avez un nouvel abonné !"
                                     )
+                                } else if (type == "message") {
+                                    val senderName = json.optString("sender_username", "Nouvel utilisateur")
+                                    val messageContent = json.optString("content")
+                                    notificationHelper.showNotification(
+                                        title = senderName,
+                                        message = messageContent
+                                    )
                                 }
                             }
                         }

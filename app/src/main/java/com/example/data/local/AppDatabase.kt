@@ -55,7 +55,8 @@ interface VideoDao {
     suspend fun deleteDownload(id: String)
 }
 
-@Database(entities = [CachedVideo::class, DownloadedVideo::class], version = 2, exportSchema = false)
+@Database(entities = [CachedVideo::class, DownloadedVideo::class, Achievement::class, UserAchievement::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun videoDao(): VideoDao
+    abstract fun achievementDao(): AchievementDao
 }

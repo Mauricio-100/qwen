@@ -49,15 +49,19 @@ class WebSocketManager(private val okHttpClient: OkHttpClient) {
         })
     }
 
-    fun sendMessage(receiverId: String, content: String, senderUsername: String) {
-        val json = JSONObject().apply {
-            put("type", "message")
-            put("receiver_id", receiverId)
-            put("content", content)
-            put("msg_type", "text")
-            put("sender_username", senderUsername)
+    fun sendMessage(receiverId: String, content: String, senderUsername: String): Boolean {
+        val ws = webSocket
+        if (ws != null) {
+            val json = JSONObject().apply {
+                put("type", "message")
+                put("receiver_id", receiverId)
+                put("content", content)
+                put("msg_type", "text")
+                put("sender_username", senderUsername)
+            }
+            return ws.send(json.toString())
         }
-        webSocket?.send(json.toString())
+        return false
     }
 
     fun joinLive(liveId: String) {

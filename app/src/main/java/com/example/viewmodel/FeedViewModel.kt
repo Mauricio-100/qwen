@@ -20,6 +20,9 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
     private val _videos = MutableStateFlow<List<Video>>(emptyList())
     val videos: StateFlow<List<Video>> = _videos.asStateFlow()
 
+    private val _feedType = MutableStateFlow("general")
+    val feedType: StateFlow<String> = _feedType.asStateFlow()
+
     private val _stories = MutableStateFlow<List<com.example.data.models.Story>>(emptyList())
     val stories: StateFlow<List<com.example.data.models.Story>> = _stories.asStateFlow()
 
@@ -125,7 +128,7 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
     private fun loadFeed() {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.getFeed()
+            val result = if (_feedType.value == "general") repository.getFeed() else repository.getFollowingFeed()
             result.onSuccess {
                 _videos.value = it
             }.onFailure {
@@ -135,13 +138,19 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
         }
     }
 
+    fun setFeedType(type: String) {
+        if (_feedType.value == type) return
+        _feedType.value = type
+        loadFeed()
+    }
+
     fun loadMore() {
         if (_isLoading.value) return
         val lastVideo = _videos.value.lastOrNull() ?: return
         
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.getFeed(cursor = lastVideo.id)
+            val result = if (_feedType.value == "general") repository.getFeed(cursor = lastVideo.id) else repository.getFollowingFeed(cursor = lastVideo.id)
             result.onSuccess { newVideos ->
                 _videos.value = _videos.value + newVideos
             }

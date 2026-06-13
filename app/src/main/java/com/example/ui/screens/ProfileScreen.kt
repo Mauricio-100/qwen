@@ -330,7 +330,13 @@ fun FriendsTab(viewModel: ProfileViewModel) {
             Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(model = u.avatarUrl ?: R.drawable.strip_logo, contentDescription = null, modifier = Modifier.size(50.dp).clip(CircleShape))
                 Spacer(modifier = Modifier.width(16.dp))
-                Text(u.username, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(u.username, style = MaterialTheme.typography.titleMedium)
+                    if (u.isVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        com.example.ui.components.VerifiedBadge(size = 14.dp)
+                    }
+                }
             }
             HorizontalDivider()
         }

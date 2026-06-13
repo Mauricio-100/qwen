@@ -1,5 +1,12 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -340,91 +347,108 @@ fun ChatListScreen(
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
                     items(filteredConversations) { conversation ->
-                        Row(
+                        Card(
+                            onClick = { onNavigateToChat(conversation.userId) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onNavigateToChat(conversation.userId) }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 5.dp)
+                                .testTag("conversation_card_${conversation.userId}"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (conversation.unreadCount > 0)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (conversation.unreadCount > 0)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else
+                                    Color.LightGray.copy(alpha = 0.08f)
+                            )
                         ) {
-                            // Avatar with realistic online status indicator
-                            Box {
-                                AsyncImage(
-                                    model = conversation.avatarUrl ?: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
-                                    contentDescription = "Avatar",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(CircleShape)
-                                )
-                                if (conversation.isOnline) {
-                                    Box(
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Avatar with realistic online status indicator
+                                Box {
+                                    AsyncImage(
+                                        model = conversation.avatarUrl ?: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+                                        contentDescription = "Avatar",
+                                        contentScale = ContentScale.Crop,
                                         modifier = Modifier
-                                            .size(14.dp)
+                                            .size(52.dp)
                                             .clip(CircleShape)
-                                            .background(Color.White, CircleShape)
-                                            .padding(2.dp)
-                                            .align(Alignment.BottomEnd)
-                                    ) {
+                                    )
+                                    if (conversation.isOnline) {
                                         Box(
                                             modifier = Modifier
-                                                .fillMaxSize()
+                                                .size(14.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF2ECC71)) // Fluent Green
+                                                .background(Color.White, CircleShape)
+                                                .padding(2.dp)
+                                                .align(Alignment.BottomEnd)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF2ECC71)) // Fluent Green
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                // Message details
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = conversation.username,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                                            fontWeight = if (conversation.unreadCount > 0) FontWeight.ExtraBold else FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                        if (conversation.isVerified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            VerifiedBadge(size = 15.dp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = conversation.lastMessage ?: "Aucun message",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                                        color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.onBackground else Color.Gray,
+                                        fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // Meta status (badge/timestamp indicator)
+                                if (conversation.unreadCount > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = conversation.unreadCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         )
                                     }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Message details
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = conversation.username,
-                                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
-                                        fontWeight = if (conversation.unreadCount > 0) FontWeight.ExtraBold else FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                    if (conversation.isVerified) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedBadge(size = 15.dp)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = conversation.lastMessage ?: "Aucun message",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
-                                    color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.onBackground else Color.Gray,
-                                    fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            // Meta status (badge/timestamp indicator)
-                            if (conversation.unreadCount > 0) {
-                                Badge(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                ) {
-                                    Text(
-                                        text = conversation.unreadCount.toString(),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    )
-                                }
-                            }
                         }
-                        
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 84.dp, end = 16.dp),
-                            color = Color.LightGray.copy(alpha = 0.2f)
-                        )
                     }
                 }
             }
