@@ -101,8 +101,15 @@ fun FullscreenStoryViewer(
 
             if (isVideo) {
                 val context = LocalContext.current
+                val attributionContext = remember(context) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        context.createAttributionContext("audio")
+                    } else {
+                        context
+                    }
+                }
                 val exoPlayer = remember {
-                    ExoPlayer.Builder(context).build().apply {
+                    ExoPlayer.Builder(attributionContext).build().apply {
                         repeatMode = Player.REPEAT_MODE_ONE
                     }
                 }

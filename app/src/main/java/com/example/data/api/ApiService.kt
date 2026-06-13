@@ -117,6 +117,22 @@ interface ApiService {
     @POST("api/users/me/avatar")
     suspend fun updateAvatar(@Part avatar: MultipartBody.Part): User
 
+    @GET("api/search")
+    suspend fun searchUsers(
+        @Query("q") query: String,
+        @Query("type") type: String = "users",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): List<User>
+    
+    @GET("api/search")
+    suspend fun searchVideos(
+        @Query("q") query: String,
+        @Query("type") type: String = "videos",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): List<Video>
+
     @GET("api/users")
     suspend fun getUsers(): List<User>
 

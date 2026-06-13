@@ -11,6 +11,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.text.ClickableText
 
 @Composable
 fun FormattedText(
@@ -19,7 +20,9 @@ fun FormattedText(
     style: TextStyle = MaterialTheme.typography.bodyMedium,
     color: Color = Color.Unspecified,
     maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip
+    overflow: TextOverflow = TextOverflow.Clip,
+    onHashtagClick: ((String) -> Unit)? = null,
+    onMentionClick: ((String) -> Unit)? = null
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.tertiary
@@ -32,11 +35,15 @@ fun FormattedText(
             append(text.substring(lastIndex, match.range.first))
             if (match.value.startsWith("@")) {
                 withStyle(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)) {
+                    pushStringAnnotation(tag = "mention", annotation = match.value)
                     append(match.value)
+                    pop()
                 }
             } else {
                 withStyle(style = SpanStyle(color = secondaryColor, fontWeight = FontWeight.Bold)) {
+                    pushStringAnnotation(tag = "hashtag", annotation = match.value)
                     append(match.value)
+                    pop()
                 }
             }
             lastIndex = match.range.last + 1
@@ -44,12 +51,21 @@ fun FormattedText(
         append(text.substring(lastIndex))
     }
 
-    Text(
+    ClickableText(
         text = annotatedString,
         modifier = modifier,
-        style = style,
-        color = color,
+        style = style.copy(color = color),
         maxLines = maxLines,
-        overflow = overflow
+        overflow = overflow,
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "hashtag", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onHashtagClick?.invoke(annotation.item)
+                }
+            annotatedString.getStringAnnotations(tag = "mention", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onMentionClick?.invoke(annotation.item)
+                }
+        }
     )
 }

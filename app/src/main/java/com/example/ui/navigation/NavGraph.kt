@@ -118,9 +118,18 @@ fun MainApp(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable(Routes.FIND_FRIENDS) {
+                composable(
+                    route = "${Routes.FIND_FRIENDS}?q={initialQuery}",
+                    arguments = listOf(androidx.navigation.navArgument("initialQuery") { 
+                        type = androidx.navigation.NavType.StringType
+                        nullable = true 
+                        defaultValue = null
+                    })
+                ) { backStackEntry ->
+                    val query = backStackEntry.arguments?.getString("initialQuery")
                     com.example.ui.screens.FindFriendsScreen(
                         viewModel = profileViewModel,
+                        initialQuery = query,
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToChat = { userId ->
                             navController.navigate("${Routes.CHAT_DETAIL}/$userId")

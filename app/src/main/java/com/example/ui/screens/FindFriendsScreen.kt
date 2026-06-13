@@ -22,31 +22,43 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.data.models.User
 import com.example.viewmodel.ProfileViewModel
+import androidx.compose.ui.graphics.Color
+
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.filled.PlayArrow
+import com.example.data.models.Video
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FindFriendsScreen(
     viewModel: ProfileViewModel,
+    initialQuery: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String) -> Unit,
     onNavigateToProfile: (String) -> Unit
 ) {
     val users by viewModel.allUsers.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
+    val videos by viewModel.searchedVideos.collectAsState()
+    
+    var searchQuery by remember { mutableStateOf(initialQuery ?: "") }
+    var selectedTabIndex by remember { mutableStateOf(if (initialQuery?.startsWith("#") == true) 1 else 0) }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadAllUsers()
-    }
-
-    val filteredUsers = remember(users, searchQuery) {
-        if (searchQuery.isBlank()) users
-        else users.filter { it.username.contains(searchQuery, ignoreCase = true) }
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.length >= 2) {
+            viewModel.searchUsersByName(searchQuery)
+            viewModel.searchVideosByQuery(searchQuery)
+        } else {
+            viewModel.loadAllUsers() // Clears users
+            viewModel.searchVideosByQuery("") // Clears videos
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Trouver des amis", fontWeight = FontWeight.Bold) },
+                title = { Text("Recherche", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Retour")
@@ -65,24 +77,83 @@ fun FindFriendsScreen(
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                placeholder = { Text("Rechercher un utilisateur...") },
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Rechercher...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.extraLarge,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                )
+                colors = OutlinedTextFieldDefaults.colors()
             )
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(filteredUsers) { user ->
-                    UserItemRow(
-                        user = user,
-                        onClick = { onNavigateToProfile(user.id) },
-                        onFollow = { viewModel.followUser(user.id) },
-                        onChat = { onNavigateToChat(user.id) }
-                    )
+            TabRow(selectedTabIndex = selectedTabIndex) {
+                Tab(
+                    selected = selectedTabIndex == 0,
+                    onClick = { selectedTabIndex = 0 },
+                    text = { Text("Utilisateurs") }
+                )
+                Tab(
+                    selected = selectedTabIndex == 1,
+                    onClick = { selectedTabIndex = 1 },
+                    text = { Text("Vidéos") }
+                )
+            }
+
+            if (searchQuery.length < 2) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Tapez au moins 2 caractères pour rechercher.")
+                }
+            } else if (selectedTabIndex == 0) {
+                if (users.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Aucun utilisateur trouvé.")
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(users) { user ->
+                            UserItemRow(
+                                user = user,
+                                onClick = { onNavigateToProfile(user.id) },
+                                onFollow = { viewModel.followUser(user.id) },
+                                onChat = { onNavigateToChat(user.id) }
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (videos.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Aucune vidéo trouvée.")
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(videos) { video ->
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(9f / 16f)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { /* Could navigate to play video */ }
+                            ) {
+                                AsyncImage(
+                                    model = video.thumbnailUrl.ifBlank { video.videoUrl },
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.align(Alignment.BottomStart).padding(4.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import android.util.Log
 
 class VideoDownloadManager(
     private val context: Context,
@@ -18,6 +19,7 @@ class VideoDownloadManager(
 ) {
     suspend fun downloadVideo(video: Video): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            Log.d("DownloadManager", "Starting download for ${video.id}")
             val request = Request.Builder().url(video.videoUrl).build()
             val response = httpClient.newCall(request).execute()
             
@@ -51,6 +53,7 @@ class VideoDownloadManager(
             
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("DownloadManager", "Download error: ${e.message}")
             Result.failure(e)
         }
     }

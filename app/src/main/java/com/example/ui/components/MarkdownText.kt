@@ -284,8 +284,16 @@ fun VideoPreviewCard(videoUrl: String) {
     var isPlaying by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(true) }
     
+    val attributionContext = remember(context) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            context.createAttributionContext("audio")
+        } else {
+            context
+        }
+    }
+    
     val exoPlayer = remember(videoUrl) {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(attributionContext).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
             volume = 0f
         }

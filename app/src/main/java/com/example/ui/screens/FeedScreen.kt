@@ -78,8 +78,15 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
 
     // Optimized Single Shared ExoPlayer for the entire feed
     val context = LocalContext.current
+    val attributionContext = remember(context) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            context.createAttributionContext("audio")
+        } else {
+            context
+        }
+    }
     val sharedExoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(attributionContext).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
@@ -145,6 +152,13 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                     onSaveSound = {
                         viewModel.saveSound(video.id)
                         Toast.makeText(context, "Son ajouté à votre bibliothèque 🎵", Toast.LENGTH_SHORT).show()
+                    },
+                    onHashtagClick = { tag ->
+                        navController.navigate("${Routes.FIND_FRIENDS}?q=${tag}")
+                    },
+                    onMentionClick = { mention ->
+                        val username = if (mention.startsWith("@")) mention.substring(1) else mention
+                        navController.navigate("${Routes.FIND_FRIENDS}?q=${username}")
                     }
                 )
             }
@@ -294,7 +308,9 @@ fun VideoPage(
     onDownloadClick: () -> Unit,
     onProfileClick: () -> Unit,
     onFollowClick: () -> Unit,
-    onSaveSound: () -> Unit
+    onSaveSound: () -> Unit,
+    onHashtagClick: (String) -> Unit = {},
+    onMentionClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var isDownloadMenuExpanded by remember { mutableStateOf(false) }
@@ -421,7 +437,24 @@ fun VideoPage(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            com.example.ui.components.FormattedText(text = video.description, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+            com.example.ui.components.FormattedText(
+                text = video.description,
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+                onHashtagClick = onHashtagClick,
+                onMentionClick = onMentionClick
+            )
+            
+            val firstUrl = remember(video.description) {
+                Regex("(https?://[\\\\w.\\-]+[^\\\\s]*)", RegexOption.IGNORE_CASE)
+                    .find(video.description)?.value
+            }
+            if (!firstUrl.isNullOrBlank()) {
+                com.example.ui.components.OpenGraphPreview(
+                    url = firstUrl,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
             
             Spacer(modifier = Modifier.height(12.dp))
             

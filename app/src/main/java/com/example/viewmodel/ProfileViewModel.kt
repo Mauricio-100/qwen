@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import android.util.Log
 
 class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
 
@@ -26,6 +27,9 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _allUsers = MutableStateFlow<List<User>>(emptyList())
     val allUsers = _allUsers.asStateFlow()
+
+    private val _searchedVideos = MutableStateFlow<List<Video>>(emptyList())
+    val searchedVideos = _searchedVideos.asStateFlow()
 
     private val _verificationStatus = MutableStateFlow<com.example.data.models.VerificationStatusResponse?>(null)
     val verificationStatus: StateFlow<com.example.data.models.VerificationStatusResponse?> = _verificationStatus.asStateFlow()
@@ -63,10 +67,43 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     }
 
     fun loadAllUsers() {
+        // Obsolete: there is no GET /api/users endpoint.
+        _allUsers.value = emptyList()
+    }
+
+    fun searchUsersByName(query: String) {
+        if (query.length < 2) {
+            _allUsers.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             try {
-                _allUsers.value = repository.apiService.getUsers()
-            } catch (e: Exception) {}
+                _allUsers.value = repository.apiService.searchUsers(query, type = "users")
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error searching users: ${e.message}")
+            }
+        }
+    }
+
+    fun searchVideosByQuery(query: String) {
+        if (query.length < 2) {
+            _searchedVideos.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val videos = repository.apiService.searchVideos(query, type = "videos")
+                // Reconstruct full URLs from thumbnails since backend search might omit video_url
+                _searchedVideos.value = videos.map { video ->
+                    if (video.videoUrl.isBlank() && video.thumbnailUrl.isNotBlank()) {
+                        video.copy(videoUrl = video.thumbnailUrl.replace(".jpg", ".mp4"))
+                    } else {
+                        video
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error searching videos: ${e.message}")
+            }
         }
     }
 
@@ -74,7 +111,9 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 _serverStats.value = repository.apiService.getServerStats()
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error loading server stats: ${e.message}")
+            }
         }
     }
 
@@ -82,18 +121,44 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 val me = repository.prefs.userIdFlow.firstOrNull() ?: ""
+                val meUsername = repository.prefs.usernameFlow.firstOrNull() ?: ""
                 if (me.isNotEmpty()) {
-                    _myVideos.value = repository.apiService.getUserVideos(me)
+                    val fetched = try {
+                        repository.apiService.getUserVideos(me)
+                    } catch (e: Exception) {
+                        Log.w("ProfileViewModel", "getUserVideos endpoint failed (likely 404). Falling back to feed and search query...")
+                        val feedVideos = try { repository.apiService.getFeed(limit = 100) } catch (ex: Exception) { emptyList() }
+                        val feedUserVideos = feedVideos.filter { it.userId == me }
+                        
+                        val searchVideos = if (meUsername.isNotEmpty()) {
+                            try { repository.apiService.searchVideos(meUsername) } catch (ex: Exception) { emptyList() }
+                        } else emptyList()
+                        val searchUserVideos = searchVideos.filter { it.userId == me }
+                        
+                        (feedUserVideos + searchUserVideos).distinctBy { it.id }
+                    }
+                    _myVideos.value = fetched
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error loading my videos: ${e.message}")
+            }
         }
     }
 
     fun loadUserVideos(userId: String) {
         viewModelScope.launch {
             try {
-                _myVideos.value = repository.apiService.getUserVideos(userId)
-            } catch (e: Exception) {}
+                val fetched = try {
+                    repository.apiService.getUserVideos(userId)
+                } catch (e: Exception) {
+                    Log.w("ProfileViewModel", "getUserVideos failed for target user. Falling back to feed index...")
+                    val feedVideos = try { repository.apiService.getFeed(limit = 100) } catch (ex: Exception) { emptyList() }
+                    feedVideos.filter { it.userId == userId }
+                }
+                _myVideos.value = fetched
+            } catch (e: Exception) {
+                Log.e("ProfileViewModel", "Error loading user videos: ${e.message}")
+            }
         }
     }
 

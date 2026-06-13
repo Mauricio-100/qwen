@@ -109,7 +109,7 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 val resp = repository.apiService.followUser(userId)
-                val status = resp["is_following"] as? Boolean ?: true
+                val status = resp["following"] as? Boolean ?: true
                 
                 _videos.value = _videos.value.map {
                     if (it.userId == userId) {

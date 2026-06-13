@@ -173,13 +173,20 @@ fun ProfileScreen(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+                
+                // Calculate dynamic stats for 'real metadata' based on loaded videos
+                val userVideos by viewModel.myVideos.collectAsState()
+                val realLikeCount = if (userId != null) userVideos.sumOf { it.likes }.coerceAtLeast(user.likesReceived) else user.likesReceived
+                val videosCountStat = if (userId != null) userVideos.size.coerceAtLeast(user.videosCount) else user.videosCount
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     StatItem(label = "Abonnés", value = user.followersCount.toString())
                     StatItem(label = "Abonnements", value = user.followingCount.toString())
-                    StatItem(label = "J'aimes", value = user.likesReceived.toString())
+                    StatItem(label = "J'aimes", value = realLikeCount.toString())
+                    StatItem(label = "Vidéos", value = videosCountStat.toString())
                 }
             }
             
