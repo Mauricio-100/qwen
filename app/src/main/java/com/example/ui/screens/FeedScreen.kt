@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
@@ -154,15 +155,22 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
             }
         }
 
+        // TabRow - "Pour toi", "Abonnements"
         TabRow(
             selectedTabIndex = if (feedType == "general") 0 else 1,
             containerColor = Color.Transparent,
             contentColor = Color.White,
-            indicator = { TabRowDefaults.SecondaryIndicator(color = Color.White) },
+            indicator = { 
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(it[if (feedType == "general") 0 else 1]),
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            },
+            divider = {}, // Remove default divider
             modifier = Modifier.fillMaxWidth().padding(top = 40.dp)
         ) {
-            Tab(selected = feedType == "general", onClick = { viewModel.setFeedType("general") }, text = { Text("Pour toi") })
-            Tab(selected = feedType == "following", onClick = { viewModel.setFeedType("following") }, text = { Text("Abonnements") })
+            Tab(selected = feedType == "general", onClick = { viewModel.setFeedType("general") }, text = { Text("Pour toi", fontSize = 16.sp, fontWeight = FontWeight.Bold) })
+            Tab(selected = feedType == "following", onClick = { viewModel.setFeedType("following") }, text = { Text("Abonnements", fontSize = 16.sp, fontWeight = FontWeight.Bold) })
         }
 
         if (viewModel.isLoading.collectAsState().value) {
@@ -301,15 +309,6 @@ fun VideoPage(
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp).fillMaxWidth().padding(horizontal = 16.dp)
             ) {
-                // Seek Bar
-                val safeDuration = playerDuration.coerceAtLeast(1L)
-                Slider(
-                    value = currentPosition.coerceIn(0L, safeDuration).toFloat(),
-                    onValueChange = { exoPlayer.seekTo(it.toLong()) },
-                    valueRange = 0f..safeDuration.toFloat(),
-                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
-                )
-                
                 // Play/Pause & Volume
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     IconButton(onClick = { if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play() }) {

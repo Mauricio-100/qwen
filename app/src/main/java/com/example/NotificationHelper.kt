@@ -36,11 +36,11 @@ class NotificationHelper(private val context: Context) {
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(context, channelId)
-            // fallback to ic_launcher if standard icons aren't available
-            .setSmallIcon(android.R.drawable.ic_dialog_info) 
+            .setSmallIcon(R.mipmap.ic_launcher) 
             .setContentTitle(title)
             .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
 
