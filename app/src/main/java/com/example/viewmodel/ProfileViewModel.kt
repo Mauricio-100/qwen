@@ -8,6 +8,7 @@ import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.flow.firstOrNull
@@ -27,11 +28,31 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     private val _allUsers = MutableStateFlow<List<User>>(emptyList())
     val allUsers = _allUsers.asStateFlow()
 
+    private val _currentUserId = MutableStateFlow<String?>(null)
+    val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
+    private val _isLoadingUsers = MutableStateFlow(false)
+    val isLoadingUsers: StateFlow<Boolean> = _isLoadingUsers.asStateFlow()
+
+    private val _followInFlightIds = MutableStateFlow<Set<String>>(emptySet())
+    val followInFlightIds: StateFlow<Set<String>> = _followInFlightIds.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
     private val _verificationStatus = MutableStateFlow<com.example.data.models.VerificationStatusResponse?>(null)
     val verificationStatus: StateFlow<com.example.data.models.VerificationStatusResponse?> = _verificationStatus.asStateFlow()
 
     val isDarkThemeFlow = repository.prefs.isDarkThemeFlow
     val downloadedVideos = repository.downloadManager?.getDownloadedVideos() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    init {
+        viewModelScope.launch {
+            repository.prefs.userIdFlow.collect { userId ->
+                _currentUserId.value = userId
+            }
+        }
+    }
 
     fun logout() {
         viewModelScope.launch {
@@ -64,9 +85,17 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
 
     fun loadAllUsers() {
         viewModelScope.launch {
+            _isLoadingUsers.value = true
             try {
-                _allUsers.value = repository.apiService.getUsers()
-            } catch (e: Exception) {}
+                val me = _currentUserId.value ?: repository.prefs.userIdFlow.firstOrNull()
+                _allUsers.value = repository.apiService
+                    .getUsers()
+                    .filterNot { it.id == me }
+            } catch (e: Exception) {
+                _errorMessage.value = "Impossible de charger les profils."
+            } finally {
+                _isLoadingUsers.value = false
+            }
         }
     }
 
@@ -119,8 +148,12 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     fun updateProfile(updates: Map<String, String>) {
          viewModelScope.launch {
              try {
-                 _userProfile.value = repository.apiService.updateProfile(updates)
-             } catch (e: Exception) {}
+                 val updatedProfile = repository.apiService.updateProfile(updates)
+                 _userProfile.value = updatedProfile
+                 syncUserCaches(updatedProfile)
+             } catch (e: Exception) {
+                 _errorMessage.value = "Impossible de mettre le profil a jour."
+             }
          }
     }
 
@@ -135,9 +168,11 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     fun loadMyProfile() {
         viewModelScope.launch {
             try {
-                _userProfile.value = repository.apiService.getMyProfile()
+                val profile = repository.apiService.getMyProfile()
+                _userProfile.value = profile
+                syncUserCaches(profile)
             } catch (e: Exception) {
-               // Handle error
+                _errorMessage.value = "Impossible de charger votre profil."
             }
         }
     }
@@ -145,21 +180,61 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
     fun loadUserProfile(userId: String) {
         viewModelScope.launch {
             try {
-                _userProfile.value = repository.apiService.getUserProfile(userId)
+                val profile = repository.apiService.getUserProfile(userId)
+                _userProfile.value = profile
+                syncUserCaches(profile)
             } catch (e: Exception) {
-               // Handle error
+                _errorMessage.value = "Impossible de charger ce profil."
             }
         }
     }
 
     fun followUser(userId: String) {
+        if (_followInFlightIds.value.contains(userId)) return
         viewModelScope.launch {
+            _followInFlightIds.update { it + userId }
             try {
-                repository.apiService.followUser(userId)
-                // Refresh profile to see updated follower count
-                loadUserProfile(userId)
-            } catch (e: Exception) {}
+                val previousUser = _allUsers.value.firstOrNull { it.id == userId }
+                    ?: _userProfile.value?.takeIf { it.id == userId }
+                val previousIsFollowing = previousUser?.isFollowing ?: false
+                val response = repository.apiService.followUser(userId)
+                val isFollowing = response["is_following"] as? Boolean ?: !previousIsFollowing
+
+                _allUsers.value = _allUsers.value.map { user ->
+                    if (user.id == userId) {
+                        user.copy(
+                            isFollowing = isFollowing,
+                            followersCount = updateCount(user.followersCount, user.isFollowing, isFollowing)
+                        )
+                    } else {
+                        user
+                    }
+                }
+
+                _userProfile.value = _userProfile.value?.let { profile ->
+                    when (profile.id) {
+                        userId -> profile.copy(
+                            isFollowing = isFollowing,
+                            followersCount = updateCount(profile.followersCount, profile.isFollowing, isFollowing)
+                        )
+
+                        _currentUserId.value -> profile.copy(
+                            followingCount = updateCount(profile.followingCount, previousIsFollowing, isFollowing)
+                        )
+
+                        else -> profile
+                    }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Impossible de mettre a jour l'abonnement."
+            } finally {
+                _followInFlightIds.update { it - userId }
+            }
         }
+    }
+
+    fun clearErrorMessage() {
+        _errorMessage.value = null
     }
 
     fun requestVerification(birthDate: String) {
@@ -172,6 +247,21 @@ class ProfileViewModel(private val repository: StripRepository) : ViewModel() {
             } catch (e: Exception) {
                 // error handling
             }
+        }
+    }
+
+    private fun syncUserCaches(updatedUser: User) {
+        _allUsers.value = _allUsers.value.map { user ->
+            if (user.id == updatedUser.id) updatedUser else user
+        }
+    }
+
+    private fun updateCount(current: Int, previousValue: Boolean, nextValue: Boolean): Int {
+        return when {
+            previousValue == nextValue -> current
+            !previousValue && nextValue -> current + 1
+            previousValue && !nextValue -> maxOf(0, current - 1)
+            else -> current
         }
     }
 }
