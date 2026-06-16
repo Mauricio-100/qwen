@@ -42,22 +42,33 @@ class MainActivity : ComponentActivity() {
     private lateinit var repository: StripRepository
     private lateinit var notificationHelper: NotificationHelper
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        // Handle response
+    private val requestMultiplePermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        // Handle responses if necessary
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val permissionsToRequest = mutableListOf<String>()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
+            permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
+            permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }
+        permissionsToRequest.add(Manifest.permission.CAMERA)
+        permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
 
+        // Permissions checks are handled gracefully with custom dark elegant Compose cards
         prefs = PreferencesManager(this)
         db = Room.databaseBuilder(this, AppDatabase::class.java, "strip_db")
             .fallbackToDestructiveMigration()
@@ -66,6 +77,7 @@ class MainActivity : ComponentActivity() {
         wsManager = WebSocketManager(OkHttpClient())
         notificationHelper = NotificationHelper(this)
         
+        val networkMonitor = com.example.utils.NetworkMonitor(this)
         val downloadManager = com.example.utils.VideoDownloadManager(this, db, OkHttpClient())
 
         repository = StripRepository(
@@ -74,7 +86,8 @@ class MainActivity : ComponentActivity() {
             db = db,
             prefs = prefs,
             notificationHelper = notificationHelper,
-            downloadManager = downloadManager
+            downloadManager = downloadManager,
+            networkMonitor = networkMonitor
         )
 
         val factory = object : ViewModelProvider.Factory {
@@ -84,6 +97,7 @@ class MainActivity : ComponentActivity() {
                 if (modelClass.isAssignableFrom(com.example.viewmodel.ChatViewModel::class.java)) return com.example.viewmodel.ChatViewModel(repository) as T
                 if (modelClass.isAssignableFrom(com.example.viewmodel.ProfileViewModel::class.java)) return com.example.viewmodel.ProfileViewModel(repository) as T
                 if (modelClass.isAssignableFrom(com.example.viewmodel.ActFileViewModel::class.java)) return com.example.viewmodel.ActFileViewModel(repository) as T
+                if (modelClass.isAssignableFrom(com.example.viewmodel.PlaylistViewModel::class.java)) return com.example.viewmodel.PlaylistViewModel(repository) as T
                 throw IllegalArgumentException("Unknown ViewModel")
             }
         }
@@ -140,6 +154,7 @@ class MainActivity : ComponentActivity() {
                         chatViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ChatViewModel::class.java],
                         profileViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ProfileViewModel::class.java],
                         actFileViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.ActFileViewModel::class.java],
+                        playlistViewModel = ViewModelProvider(this@MainActivity, factory)[com.example.viewmodel.PlaylistViewModel::class.java],
                         startDestination = dest
                     )
                 } ?: run {

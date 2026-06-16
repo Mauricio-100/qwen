@@ -6,6 +6,7 @@ import com.example.data.models.LiveStream
 import com.example.data.models.Message
 import com.example.data.models.User
 import com.example.data.models.Video
+import com.example.data.models.SoundDetailsResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Body
@@ -66,13 +67,52 @@ interface ApiService {
     suspend fun followUser(@Path("userId") userId: String): Map<String, Any>
 
     @GET("api/users/{userId}/sounds")
-    suspend fun getUserSounds(@Path("userId") userId: String): List<Video> // Videos identified as having original sound
+    suspend fun getUserSounds(@Path("userId") userId: String): List<com.example.data.models.Sound>
+
+    @GET("api/profile/{userId}/wings")
+    suspend fun getUserWings(
+        @Path("userId") userId: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): com.example.data.models.UserWingsResponse
 
     @POST("api/sounds/{videoId}/save")
     suspend fun saveSound(@Path("videoId") videoId: String): Map<String, Any>
 
     @GET("api/users/me/saved-sounds")
     suspend fun getSavedSounds(): List<Video>
+
+    @GET("api/sounds/{id}")
+    suspend fun getSoundDetails(@Path("id") soundId: String): SoundDetailsResponse
+
+    @GET("api/search")
+    suspend fun searchSounds(
+        @Query("q") query: String,
+        @Query("type") type: String = "sounds",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): com.example.data.models.SearchSoundsResponse
+
+    @GET("api/sounds/recommendations")
+    suspend fun getRecommendedSounds(
+        @Query("limit") limit: Int = 20
+    ): List<com.example.data.models.Sound>
+
+    @GET("api/sounds/category/{category_name}")
+    suspend fun getSoundsByCategory(
+        @Path("category_name") categoryName: String,
+        @Query("limit") limit: Int = 20
+    ): List<com.example.data.models.Sound>
+
+    @Multipart
+    @POST("api/sounds/upload")
+    suspend fun uploadSound(
+        @Part audioFile: MultipartBody.Part,
+        @Part coverFile: MultipartBody.Part?,
+        @Part("title") title: RequestBody,
+        @Part("description") description: RequestBody,
+        @Part("category") category: RequestBody
+    ): Map<String, Any>
 
     @GET("api/users/{id}")
     suspend fun getUserProfile(@Path("id") id: String): User
@@ -129,15 +169,21 @@ interface ApiService {
         @Query("type") type: String = "users",
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
-    ): List<User>
+    ): com.example.data.models.SearchUsersResponse
     
     @GET("api/search")
     suspend fun searchVideos(
         @Query("q") query: String,
         @Query("type") type: String = "videos",
+        @Query("date") date: String? = null,
+        @Query("views") views: String? = null,
+        @Query("duration") duration: String? = null,
+        @Query("tag") tag: String? = null,
+        @Query("mention") mention: String? = null,
+        @Query("relevance") relevance: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
-    ): List<Video>
+    ): com.example.data.models.SearchVideosResponse
 
     @GET("api/users")
     suspend fun getUsers(): List<User>
@@ -164,6 +210,14 @@ interface ApiService {
     @PUT("api/users/me")
     suspend fun updateProfile(@Body updates: Map<String, String>): User
 
+    @Multipart
+    @PUT("api/users/me")
+    suspend fun updateProfileMultipart(
+        @Part("bio") bio: RequestBody? = null,
+        @Part("phone_number") phoneNumber: RequestBody? = null,
+        @Part avatar: MultipartBody.Part? = null
+    ): User
+
     @GET("api/notifications")
     suspend fun getNotifications(
         @Query("unread_only") unreadOnly: Boolean = false,
@@ -172,4 +226,35 @@ interface ApiService {
 
     @GET("api/users/{id}/videos")
     suspend fun getUserVideos(@Path("id") userId: String): List<Video>
+
+    // PLAYLIST API ENDPOINTS
+    @GET("api/playlists")
+    suspend fun getPlaylists(): List<com.example.data.models.Playlist>
+
+    @POST("api/playlists")
+    suspend fun createPlaylist(@Body request: Map<String, String>): com.example.data.models.Playlist
+
+    @PUT("api/playlists/{id}")
+    suspend fun editPlaylist(
+        @Path("id") playlistId: String,
+        @Body request: Map<String, String>
+    ): com.example.data.models.Playlist
+
+    @retrofit2.http.DELETE("api/playlists/{id}")
+    suspend fun deletePlaylist(@Path("id") playlistId: String): Map<String, Boolean>
+
+    @GET("api/playlists/{playlistId}/videos")
+    suspend fun getPlaylistVideos(@Path("playlistId") playlistId: String): List<Video>
+
+    @POST("api/playlists/{playlistId}/videos/{videoId}")
+    suspend fun addVideoToPlaylist(
+        @Path("playlistId") playlistId: String,
+        @Path("videoId") videoId: String
+    ): Map<String, Any>
+
+    @retrofit2.http.DELETE("api/playlists/{playlistId}/videos/{videoId}")
+    suspend fun removeVideoFromPlaylist(
+        @Path("playlistId") playlistId: String,
+        @Path("videoId") videoId: String
+    ): Map<String, Any>
 }

@@ -38,19 +38,29 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.viewmodel.ActFileViewModel
 import com.example.viewmodel.FeedViewModel
+import androidx.navigation.NavController
+import com.example.ui.navigation.Routes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen(
     feedViewModel: FeedViewModel,
     actFileViewModel: ActFileViewModel? = null,
+    navController: NavController? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val isLoading by feedViewModel.isLoading.collectAsState()
+    val selectedSound by feedViewModel.selectedSound.collectAsState()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Vidéo, 1 = Story, 2 = ActFile
+
+    DisposableEffect(Unit) {
+        onDispose {
+            feedViewModel.selectSound(null)
+        }
+    }
     
     // Video States
     var videoDescription by remember { mutableStateOf("") }
@@ -67,6 +77,13 @@ fun PublishScreen(
     // Audio States
     var audioTitle by remember { mutableStateOf("Son original") }
     var audioOwner by remember { mutableStateOf("") }
+
+    LaunchedEffect(selectedSound) {
+        selectedSound?.let { sound ->
+            audioTitle = sound.title
+            audioOwner = sound.authorUsername
+        }
+    }
     
     // Effect States
     val effects = listOf(
@@ -84,9 +101,9 @@ fun PublishScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            audioTitle = "Musique perso"
-            audioOwner = "Ma bibliothèque"
-            Toast.makeText(context, "Audio de l'appareil sélectionné !", Toast.LENGTH_SHORT).show()
+            audioTitle = "Son original"
+            audioOwner = ""
+            Toast.makeText(context, "Audio sélectionné (marqué comme Son original) !", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -345,6 +362,13 @@ fun PublishScreen(
                                     Text(text = audioTitle, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                                     if (audioOwner.isNotBlank()) {
                                         Text(text = "par $audioOwner", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                if (navController != null) {
+                                    IconButton(onClick = {
+                                        navController.navigate(Routes.SOUND_LIBRARY)
+                                    }) {
+                                        Icon(Icons.Default.Explore, contentDescription = "Sons Viraux", tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                                 IconButton(onClick = {

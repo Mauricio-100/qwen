@@ -18,6 +18,9 @@ class PreferencesManager(private val context: Context) {
         val USER_ID_KEY = stringPreferencesKey("user_id")
         val USERNAME_KEY = stringPreferencesKey("username")
         val THEME_MODE_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("theme_mode_dark")
+        val OFFLINE_SIM_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("offline_sim_mode")
+        val MAX_CACHE_SIZE_KEY = androidx.datastore.preferences.core.intPreferencesKey("max_cache_size")
+        val DOWNLOAD_QUALITY_KEY = stringPreferencesKey("download_quality")
     }
 
     suspend fun saveAuth(token: String, userId: String, username: String) {
@@ -34,6 +37,24 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
+    suspend fun setOfflineSimMode(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[OFFLINE_SIM_KEY] = enabled
+        }
+    }
+
+    suspend fun setMaxCacheSize(megabytes: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[MAX_CACHE_SIZE_KEY] = megabytes
+        }
+    }
+
+    suspend fun setDownloadQuality(quality: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DOWNLOAD_QUALITY_KEY] = quality
+        }
+    }
+
     suspend fun clearAuth() {
         context.dataStore.edit { prefs ->
             prefs.remove(TOKEN_KEY)
@@ -46,6 +67,10 @@ class PreferencesManager(private val context: Context) {
     val userIdFlow: Flow<String?> = context.dataStore.data.map { it[USER_ID_KEY] }
     val usernameFlow: Flow<String?> = context.dataStore.data.map { it[USERNAME_KEY] }
     val isDarkThemeFlow: Flow<Boolean?> = context.dataStore.data.map { it[THEME_MODE_KEY] }
+    
+    val offlineSimFlow: Flow<Boolean> = context.dataStore.data.map { it[OFFLINE_SIM_KEY] ?: false }
+    val maxCacheSizeFlow: Flow<Int> = context.dataStore.data.map { it[MAX_CACHE_SIZE_KEY] ?: 500 }
+    val downloadQualityFlow: Flow<String> = context.dataStore.data.map { it[DOWNLOAD_QUALITY_KEY] ?: "Medium" }
 
     suspend fun getToken(): String? {
         return tokenFlow.first()

@@ -23,23 +23,43 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.data.models.Video
+import com.example.data.models.formatAudioLabel
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
+
+import androidx.compose.ui.text.style.TextAlign
+import androidx.navigation.NavController
+import com.example.ui.navigation.Routes
+
+fun getFolderSize(dir: java.io.File): Long {
+    var size: Long = 0
+    val files = dir.listFiles()
+    if (files != null) {
+        for (f in files) {
+            size += if (f.isDirectory) getFolderSize(f) else f.length()
+        }
+    }
+    return size
+}
 
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     userId: String? = null,
+    navController: NavController? = null,
     onNavigateToVerification: () -> Unit
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = if (userId == null) {
-        listOf("Profil", "Mes Vidéos", "Téléchargements", "Sons", "Amis", "Statistiques")
+        listOf("Profil", "Mes Vidéos", "Téléchargements", "Sons", "Playlists", "Amis", "Statistiques")
     } else {
         listOf("Vidéos", "Sons")
     }
@@ -94,8 +114,7 @@ fun ProfileScreen(
                         contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
                     ) { uri ->
                         if (uri != null) {
-                            // Update avatar URL locally using the URI
-                            viewModel.updateProfile(mapOf("avatar_url" to uri.toString()))
+                            viewModel.updateAvatar(context, uri)
                         }
                     }
 
@@ -132,9 +151,17 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(text = user.bio ?: "Aucune bio", style = MaterialTheme.typography.bodyLarge)
                 
-                user.zodiacSign?.let {
+                user.zodiacSign?.let { zodiac ->
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Signe : $it", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    SuggestionChip(
+                        onClick = {},
+                        label = { Text(text = getZodiacEmoji(zodiac), fontWeight = FontWeight.Bold) },
+                        icon = { Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            labelColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
                 }
                 
                 if (!user.isVerified && userId == null) {
@@ -178,6 +205,8 @@ fun ProfileScreen(
                 val userVideos by viewModel.myVideos.collectAsState()
                 val realLikeCount = if (userId != null) userVideos.sumOf { it.likes }.coerceAtLeast(user.likesReceived) else user.likesReceived
                 val videosCountStat = if (userId != null) userVideos.size.coerceAtLeast(user.videosCount) else user.videosCount
+                val userSounds by viewModel.userSounds.collectAsState()
+                val soundsCountStat = userSounds.size
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,6 +216,7 @@ fun ProfileScreen(
                     StatItem(label = "Abonnements", value = user.followingCount.toString())
                     StatItem(label = "J'aimes", value = realLikeCount.toString())
                     StatItem(label = "Vidéos", value = videosCountStat.toString())
+                    StatItem(label = "Sons", value = soundsCountStat.toString())
                 }
             }
             
@@ -206,8 +236,42 @@ fun ProfileScreen(
                     currentTabTitle == "Profil" -> ProfileInfoTab(user, viewModel)
                     currentTabTitle == "Mes Vidéos" || currentTabTitle == "Vidéos" -> MyVideosTab(viewModel)
                     currentTabTitle == "Téléchargements" -> DownloadedVideosTab(viewModel)
-                    currentTabTitle == "Sons" -> UserSoundsTab(viewModel)
-                    currentTabTitle == "Amis" -> FriendsTab(viewModel)
+                    currentTabTitle == "Sons" -> UserSoundsTab(viewModel, navController)
+                    currentTabTitle == "Playlists" -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FeaturedPlayList,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Mes Playlists Personnalisées",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Organise, filtre et sauvegarde tes swings favoris dans tes dossiers privés.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Center,
+                                    color = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Button(
+                                    onClick = { navController?.navigate(Routes.PLAYLISTS) }
+                                ) {
+                                    Text("Gérer mes playlists")
+                                }
+                            }
+                        }
+                    }
+                    currentTabTitle == "Amis" -> FriendsTab(viewModel, navController)
                     currentTabTitle == "Statistiques" -> StatsTab(viewModel)
                 }
             }
@@ -257,31 +321,272 @@ fun ProfileInfoTab(user: com.example.data.models.User, viewModel: ProfileViewMod
     var email by remember { mutableStateOf(user.email ?: "") }
     var phone by remember { mutableStateOf(user.phoneNumber ?: "") }
     var dob by remember { mutableStateOf(user.birthDate ?: "") }
+    var bio by remember { mutableStateOf(user.bio ?: "") }
 
     val isDarkThemePref by viewModel.isDarkThemeFlow.collectAsState(initial = null)
     val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDarkTheme = isDarkThemePref ?: isSystemDark
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val isSimOffline by viewModel.offlineSimFlow.collectAsState(initial = false)
+    val downloadQuality by viewModel.downloadQualityFlow.collectAsState(initial = "Medium")
+    val isAppOffline by viewModel.isOfflineFlow.collectAsState(initial = false)
+
+    var folderSizeMB by remember { mutableStateOf(0.0) }
+
+    LaunchedEffect(isAppOffline) {
+        val dir = java.io.File(context.filesDir, "downloads")
+        folderSizeMB = if (dir.exists()) {
+            getFolderSize(dir).toDouble() / (1024.0 * 1024.0)
+        } else {
+            0.0
+        }
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // LEOPARD MASCOT HERO CHAT BUBBLE
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Mode Sombre")
-                Switch(checked = isDarkTheme, onCheckedChange = { viewModel.setThemeMode(it) })
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                ),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(70.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_leopard_mascot),
+                            contentDescription = "Mascotte Léo le Léopard",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Léo le Léopard 🐆",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.background,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = if (isAppOffline) {
+                                    "Aïe, pas d'internet ou mode simulation ! 🐆 Mais pas de panique, je veille sur tes vidéos, messages et profils en cache (jusqu'à 500Mo) !"
+                                } else {
+                                    "Raaawr! Bienvenue sur STRIP! 🐆 Tout fonctionne à merveille. Je pré-cache tes swipes préférés automatiquement !"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // OFFLINE SETTINGS CONTROLLERS CARD
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Paramètres Hors-Ligne 🐆",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Simulate Offline Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Simuler Mode Hors-ligne",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Force l'app en mode déconnectée pour tester le cache",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isSimOffline,
+                            onCheckedChange = { viewModel.setOfflineSimMode(it) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Media Quality Choice
+                    Text(
+                        text = "Qualité de téléchargement",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Basse", "Moyenne", "Haute").forEach { quality ->
+                            val isSelected = downloadQuality.lowercase() == quality.lowercase()
+                            InputChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setDownloadQuality(quality) },
+                                label = { Text(quality) },
+                                modifier = Modifier.weight(1f),
+                                colors = InputChipDefaults.inputChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Storage and 500MB Limit Indicator
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Cache Utilisé (Limite 500Mo)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = String.format("%.2f Mo / 500 Mo", folderSizeMB),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { (folderSizeMB / 500.0).toFloat().coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.clearCacheAndDownloads(context) {
+                                folderSizeMB = 0.0
+                                android.widget.Toast.makeText(context, "Cache vidé !", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Vider le cache hors-ligne")
+                    }
+                }
+            }
+        }
+
+        // GENERAL THEME & USER FORM
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Mode Sombre",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Switch(checked = isDarkTheme, onCheckedChange = { viewModel.setThemeMode(it) })
+                    }
+                }
+            }
+        }
+
+        item {
             OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Numéro") }, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(value = dob, onValueChange = { dob = it }, label = { Text("Date de Naissance") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = dob, 
+                onValueChange = { dob = it }, 
+                label = { Text("Date de Naissance (Format JJ/MM/AA ou AAAA-MM-JJ)") }, 
+                placeholder = { Text("Ex: 15/05/98 ou 1998-05-15") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = bio, onValueChange = { bio = it }, label = { Text("Description (Bio)") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = {
-                viewModel.updateProfile(mapOf(
-                    "email" to email,
-                    "phone_number" to phone,
-                    "birth_date" to dob
-                ))
-            }) {
+            Button(
+                onClick = {
+                    val normalizedDob = normalizeBirthDate(dob)
+                    viewModel.updateProfile(mapOf(
+                        "email" to email,
+                        "phone_number" to phone,
+                        "birth_date" to normalizedDob,
+                        "bio" to bio
+                    ))
+                    if (normalizedDob.isNotBlank()) {
+                        viewModel.requestVerification(normalizedDob)
+                    }
+                    android.widget.Toast.makeText(context, "Profil mis à jour !", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Sauvegarder")
             }
         }
@@ -323,22 +628,95 @@ fun MyVideosTab(viewModel: ProfileViewModel) {
 }
 
 @Composable
-fun FriendsTab(viewModel: ProfileViewModel) {
+fun FriendsTab(viewModel: ProfileViewModel, navController: NavController? = null) {
     val users by viewModel.allUsers.collectAsState()
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        lazyItems(users) { u ->
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(model = u.avatarUrl ?: R.drawable.strip_logo, contentDescription = null, modifier = Modifier.size(50.dp).clip(CircleShape))
-                Spacer(modifier = Modifier.width(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(u.username, style = MaterialTheme.typography.titleMedium)
-                    if (u.isVerified) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        com.example.ui.components.VerifiedBadge(size = 14.dp)
+    var query by remember { mutableStateOf("") }
+
+    LaunchedEffect(query) {
+        if (query.length >= 2) {
+            viewModel.searchUsersByName(query)
+        } else {
+            // Initiate default populate search
+            viewModel.searchUsersByName("a")
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Rechercher des utilisateurs") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
                     }
                 }
+            } else null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            singleLine = true
+        )
+
+        if (users.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("Aucun utilisateur trouvé", color = Color.Gray)
             }
-            HorizontalDivider()
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                lazyItems(users) { u ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                navController?.navigate("${Routes.USER_PROFILE}/${u.id}")
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = u.avatarUrl ?: R.drawable.strip_logo,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(u.username, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                if (u.isVerified) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    com.example.ui.components.VerifiedBadge(size = 14.dp)
+                                }
+                            }
+                            Text(
+                                text = u.bio ?: "Aucune description",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray,
+                                maxLines = 1
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.toggleFollowInList(u)
+                            },
+                            colors = if (u.isFollowing) ButtonDefaults.buttonColors(containerColor = Color.Gray) else ButtonDefaults.buttonColors(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(
+                                text = if (u.isFollowing) "Abonné" else "S'abonner",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+            }
         }
     }
 }
@@ -395,7 +773,7 @@ fun StatsTab(viewModel: ProfileViewModel) {
 }
 
 @Composable
-fun UserSoundsTab(viewModel: ProfileViewModel) {
+fun UserSoundsTab(viewModel: ProfileViewModel, navController: NavController? = null) {
     val sounds by viewModel.userSounds.collectAsState()
     if (sounds.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -413,6 +791,10 @@ fun UserSoundsTab(viewModel: ProfileViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .clickable {
+                            val soundId = sound.soundId ?: "original_${sound.id}"
+                            navController?.navigate("${Routes.SOUND_PIVOT}/$soundId")
+                        }
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -428,14 +810,9 @@ fun UserSoundsTab(viewModel: ProfileViewModel) {
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = sound.audioTitle ?: "Son original",
+                            text = sound.formatAudioLabel(),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Par @${sound.audioOwner ?: sound.username}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { /* Play Preview */ }) {
@@ -453,4 +830,50 @@ fun StatItem(label: String, value: String) {
         Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
     }
+}
+
+fun getZodiacEmoji(sign: String): String {
+    return when (sign.lowercase()) {
+        "bélier" -> "Bélier ♈"
+        "taureau" -> "Taureau ♉"
+        "gémeaux" -> "Gémeaux ♊"
+        "cancer" -> "Cancer ♋"
+        "lion" -> "Lion ♌"
+        "vierge" -> "Vierge ♍"
+        "balance" -> "Balance ♎"
+        "scorpion" -> "Scorpion ♏"
+        "sagittaire" -> "Sagittaire ♐"
+        "capricorne" -> "Capricorne ♑"
+        "verseau" -> "Verseau ♒"
+        "poissons" -> "Poissons ♓"
+        else -> sign
+    }
+}
+
+fun normalizeBirthDate(input: String): String {
+    val trimmed = input.trim()
+    
+    // Match YY/MM/DD or YY-MM-DD or YY.MM.DD
+    val yyMatch = Regex("^(\\d{2})[/.-](\\d{2})[/.-](\\d{2})$").find(trimmed)
+    if (yyMatch != null) {
+        val (yy, mm, dd) = yyMatch.destructured
+        val yearPrefix = if (yy.toInt() > 40) "19" else "20"
+        return "$yearPrefix$yy-$mm-$dd"
+    }
+    
+    // Match DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    val dmyMatch = Regex("^(\\d{2})[/.-](\\d{2})[/.-](\\d{4})$").find(trimmed)
+    if (dmyMatch != null) {
+        val (dd, mm, yyyy) = dmyMatch.destructured
+        return "$yyyy-$mm-$dd"
+    }
+    
+    // Match YYYY/MM/DD or YYYY-MM-DD or YYYY.MM.DD
+    val ymdMatch = Regex("^(\\d{4})[/.-](\\d{2})[/.-](\\d{2})$").find(trimmed)
+    if (ymdMatch != null) {
+        val (yyyy, mm, dd) = ymdMatch.destructured
+        return "$yyyy-$mm-$dd"
+    }
+    
+    return trimmed
 }

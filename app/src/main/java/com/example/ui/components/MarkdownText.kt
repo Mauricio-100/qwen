@@ -285,7 +285,7 @@ fun VideoPreviewCard(videoUrl: String) {
     var isMuted by remember { mutableStateOf(true) }
     
     val exoPlayer = remember(videoUrl) {
-        ExoPlayer.Builder(context.applicationContext).build().apply {
+        ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
             volume = 0f
         }

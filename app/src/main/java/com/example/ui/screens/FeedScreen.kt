@@ -12,6 +12,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -54,6 +55,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.example.data.models.Video
+import com.example.data.models.formatAudioLabel
 import com.example.viewmodel.FeedViewModel
 import kotlinx.coroutines.delay
 
@@ -75,7 +77,7 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
     // Optimized Single Shared ExoPlayer for the entire feed
     val context = LocalContext.current
     val sharedExoPlayer = remember {
-        ExoPlayer.Builder(context.applicationContext).build().apply {
+        ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
@@ -117,6 +119,7 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                     video = video,
                     exoPlayer = sharedExoPlayer,
                     isFocused = pagerState.currentPage == page,
+                    onView = { viewModel.incrementVideoView(video.id) },
                     onLike = { viewModel.likeVideo(video.id) },
                     onCommentClick = {
                         showCommentsFor = video.id
@@ -141,8 +144,8 @@ fun FeedScreen(viewModel: FeedViewModel, navController: NavController) {
                         viewModel.followUser(video.userId)
                     },
                     onSaveSound = {
-                        viewModel.saveSound(video.id)
-                        Toast.makeText(context, "Son ajouté à votre bibliothèque 🎵", Toast.LENGTH_SHORT).show()
+                        val soundId = video.soundId ?: "original_${video.id}"
+                        navController.navigate("${Routes.SOUND_PIVOT}/$soundId")
                     },
                     onHashtagClick = { tag ->
                         navController.navigate("${Routes.FIND_FRIENDS}?q=${tag}")
@@ -239,6 +242,7 @@ fun VideoPage(
     video: Video,
     exoPlayer: ExoPlayer,
     isFocused: Boolean,
+    onView: () -> Unit,
     onLike: () -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit,
@@ -254,15 +258,16 @@ fun VideoPage(
     
     // Playback control states
     var isPlaying by remember { mutableStateOf(exoPlayer.isPlaying) }
-    var currentPosition by remember { mutableLongStateOf(exoPlayer.currentPosition) }
-    var playerDuration by remember { mutableLongStateOf(exoPlayer.duration) }
+    var hasViewed by remember { mutableStateOf(false) }
     
     LaunchedEffect(isFocused) {
         if (isFocused) {
+            if (!hasViewed) {
+                onView()
+                hasViewed = true
+            }
             while (true) {
                 isPlaying = exoPlayer.isPlaying
-                currentPosition = exoPlayer.currentPosition
-                playerDuration = exoPlayer.duration.coerceAtLeast(1L)
                 delay(500)
             }
         }
@@ -300,48 +305,24 @@ fun VideoPage(
                             onDoubleTap = {
                                 if (!video.liked) onLike()
                                 showHeart = true
+                            },
+                            onTap = {
+                                if (exoPlayer.isPlaying) exoPlayer.pause()
+                                else exoPlayer.play()
                             }
                         )
                     }
             )
             
-            // Playback Controls Overlay
-            Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp).fillMaxWidth().padding(horizontal = 16.dp)
-            ) {
-                // Play/Pause & Volume
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    IconButton(onClick = { if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
-                        Icon(
-                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color.White
-                        )
-                    }
-                    
-                    var volume by remember { mutableFloatStateOf(exoPlayer.volume) }
-                    Slider(
-                        value = volume,
-                        onValueChange = { 
-                            volume = it
-                            exoPlayer.volume = it
-                        },
-                        modifier = Modifier.width(100.dp),
-                        colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White)
+            // Paused indicator
+            if (!isPlaying) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.size(64.dp)
                     )
-                    
-                    // Quality Selector
-                    var showQualityMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { showQualityMenu = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Quality", tint = Color.White)
-                        }
-                        DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
-                            DropdownMenuItem(text = { Text("360p") }, onClick = { showQualityMenu = false })
-                            DropdownMenuItem(text = { Text("720p") }, onClick = { showQualityMenu = false })
-                            DropdownMenuItem(text = { Text("1080p") }, onClick = { showQualityMenu = false })
-                        }
-                    }
                 }
             }
         } else {
@@ -449,16 +430,18 @@ fun VideoPage(
             Spacer(modifier = Modifier.height(12.dp))
             
             // Audio Info
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { onSaveSound() }
+            ) {
                 Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "${video.audioTitle ?: "Son original"} - ${video.audioOwner ?: video.username}",
+                    text = video.formatAudioLabel(),
                     color = Color.White,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 200.dp)
+                    modifier = Modifier.widthIn(max = 200.dp).basicMarquee()
                 )
             }
         }
@@ -581,14 +564,14 @@ fun VideoPage(
                 modifier = Modifier
                     .size(44.dp)
                     .clickable { onSaveSound() }
-                    .graphicsLayer(rotationZ = rotation)
+                    .graphicsLayer(rotationZ = if (isPlaying) rotation else 0f)
                     .background(Color.DarkGray, CircleShape)
                     .border(8.dp, Color.Black.copy(alpha = 0.8f), CircleShape)
                     .padding(4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
-                    model = video.avatarUrl ?: R.drawable.strip_logo,
+                    model = video.soundCover ?: video.avatarUrl ?: R.drawable.strip_logo,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                     contentScale = ContentScale.Crop

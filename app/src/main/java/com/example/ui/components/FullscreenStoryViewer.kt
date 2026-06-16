@@ -2,12 +2,15 @@ package com.example.ui.components
 
 import android.net.Uri
 import com.example.R
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -102,7 +105,7 @@ fun FullscreenStoryViewer(
             if (isVideo) {
                 val context = LocalContext.current
                 val exoPlayer = remember {
-                    ExoPlayer.Builder(context.applicationContext).build().apply {
+                    ExoPlayer.Builder(context).build().apply {
                         repeatMode = Player.REPEAT_MODE_ONE
                     }
                 }
@@ -260,6 +263,79 @@ fun FullscreenStoryViewer(
                             contentDescription = "Close Story",
                             tint = Color.White
                         )
+                    }
+                }
+                
+                // Story thumbnails horizontal scrollable strip
+                Spacer(modifier = Modifier.height(10.dp))
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    itemsIndexed(stories) { idx, storyItem ->
+                        val isActive = idx == currentIndex
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.DarkGray)
+                                .border(
+                                    width = if (isActive) 2.dp else 1.dp,
+                                    color = if (isActive) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    currentIndex = idx
+                                    progress = 0f
+                                }
+                        ) {
+                            // Story preview background image
+                            AsyncImage(
+                                model = storyItem.mediaUrl,
+                                contentDescription = "Miniature de story",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            // Active overlay effect
+                            if (isActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .align(Alignment.TopEnd)
+                                            .padding(2.dp)
+                                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                    )
+                                }
+                            } else {
+                                // Dim inactive items slightly for focus
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.35f))
+                                )
+                            }
+                            
+                            // Mini user avatar overlay in corner
+                            AsyncImage(
+                                model = storyItem.avatarUrl ?: R.drawable.strip_logo,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .align(Alignment.BottomEnd)
+                                    .border(1.dp, Color.White, CircleShape)
+                            )
+                        }
                     }
                 }
 

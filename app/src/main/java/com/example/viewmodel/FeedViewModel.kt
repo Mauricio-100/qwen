@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.models.Video
+import com.example.data.models.Sound
+import com.example.data.models.SoundDetailsResponse
 import com.example.data.repository.StripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +21,20 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
 
     private val _videos = MutableStateFlow<List<Video>>(emptyList())
     val videos: StateFlow<List<Video>> = _videos.asStateFlow()
+
+    // Selected sound for publishing / creation
+    private val _selectedSound = MutableStateFlow<Sound?>(null)
+    val selectedSound: StateFlow<Sound?> = _selectedSound.asStateFlow()
+
+    // Sound pivot state
+    private val _soundDetails = MutableStateFlow<SoundDetailsResponse?>(null)
+    val soundDetails: StateFlow<SoundDetailsResponse?> = _soundDetails.asStateFlow()
+
+    private val _isSoundLoading = MutableStateFlow(false)
+    val isSoundLoading = _isSoundLoading.asStateFlow()
+
+    private val _searchMetadata = MutableStateFlow<com.example.data.models.SearchMetadata?>(null)
+    val searchMetadata = _searchMetadata.asStateFlow()
 
     private val _feedType = MutableStateFlow("general")
     val feedType: StateFlow<String> = _feedType.asStateFlow()
@@ -125,7 +141,7 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
         }
     }
 
-    private fun loadFeed() {
+    fun loadFeed() {
         viewModelScope.launch {
             _isLoading.value = true
             val result = if (_feedType.value == "general") repository.getFeed() else repository.getFollowingFeed()
@@ -135,6 +151,21 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
                 // Failure
             }
             _isLoading.value = false
+        }
+    }
+
+    fun incrementVideoView(videoId: String) {
+        viewModelScope.launch {
+            try {
+                repository.apiService.viewVideo(videoId)
+                _videos.value = _videos.value.map {
+                    if (it.id == videoId) {
+                        it.copy(views = it.views + 1)
+                    } else it
+                }
+            } catch (e: Exception) {
+                // handle fail
+            }
         }
     }
 
@@ -314,6 +345,130 @@ class FeedViewModel(private val repository: StripRepository) : ViewModel() {
         // Should ideally call an API, keeping it local if API absent, but user wants real data.
         // Assuming no viewStory API yet, but we can add one if needed.
         _storyViews.value = _storyViews.value + (storyId to (_storyViews.value[storyId] ?: 0) + 1)
+    }
+
+    fun selectSound(sound: Sound?) {
+        _selectedSound.value = sound
+    }
+
+    fun loadSoundDetails(soundId: String) {
+        viewModelScope.launch {
+            _isSoundLoading.value = true
+            _soundDetails.value = null
+            try {
+                val details = repository.apiService.getSoundDetails(soundId)
+                _soundDetails.value = details
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isSoundLoading.value = false
+            }
+        }
+    }
+
+    private val _recommendedSounds = MutableStateFlow<List<Sound>>(emptyList())
+    val recommendedSounds: StateFlow<List<Sound>> = _recommendedSounds.asStateFlow()
+
+    private val _categorySounds = MutableStateFlow<List<Sound>>(emptyList())
+    val categorySounds: StateFlow<List<Sound>> = _categorySounds.asStateFlow()
+
+    private val _searchedSounds = MutableStateFlow<List<Sound>>(emptyList())
+    val searchedSounds: StateFlow<List<Sound>> = _searchedSounds.asStateFlow()
+
+    fun loadRecommendedSounds() {
+        viewModelScope.launch {
+            try {
+                val list = repository.apiService.getRecommendedSounds(limit = 30)
+                _recommendedSounds.value = list
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun loadSoundsByCategory(category: String) {
+        viewModelScope.launch {
+            try {
+                val list = repository.apiService.getSoundsByCategory(category, limit = 30)
+                _categorySounds.value = list
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun searchSounds(query: String) {
+        viewModelScope.launch {
+            try {
+                if (query.length >= 2) {
+                    val response = repository.apiService.searchSounds(query)
+                    _searchedSounds.value = response.results
+                    _searchMetadata.value = response.metadata
+                } else {
+                    _searchedSounds.value = emptyList()
+                    _searchMetadata.value = null
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _searchedSounds.value = emptyList()
+            }
+        }
+    }
+
+    fun uploadSound(
+        context: Context,
+        audioUri: Uri,
+        title: String,
+        description: String,
+        category: String,
+        coverUri: Uri?,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val contentResolver = context.contentResolver
+                // Audio file part
+                val audioInputStream = contentResolver.openInputStream(audioUri) ?: throw Exception("Impossible d'ouvrir l'audio")
+                val audioBytes = audioInputStream.readBytes()
+                audioInputStream.close()
+
+                val audioRequestBody = RequestBody.create("audio/*".toMediaTypeOrNull(), audioBytes)
+                val audioPart = MultipartBody.Part.createFormData("audio_file", "audio.mp3", audioRequestBody)
+
+                // Cover file part
+                val coverPart = if (coverUri != null) {
+                    val coverInputStream = contentResolver.openInputStream(coverUri)
+                    val coverBytes = coverInputStream?.readBytes()
+                    coverInputStream?.close()
+                    if (coverBytes != null) {
+                        val coverRequestBody = RequestBody.create("image/*".toMediaTypeOrNull(), coverBytes)
+                        MultipartBody.Part.createFormData("cover_file", "cover.jpg", coverRequestBody)
+                    } else null
+                } else null
+
+                val titleBody = RequestBody.create("text/plain".toMediaTypeOrNull(), title)
+                val descBody = RequestBody.create("text/plain".toMediaTypeOrNull(), description)
+                val categoryBody = RequestBody.create("text/plain".toMediaTypeOrNull(), category)
+
+                repository.apiService.uploadSound(
+                    audioFile = audioPart,
+                    coverFile = coverPart,
+                    title = titleBody,
+                    description = descBody,
+                    category = categoryBody
+                )
+                
+                // Refresh recommended sounds
+                loadRecommendedSounds()
+                callback(true, null)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                callback(false, e.localizedMessage ?: "Erreur de téléversement")
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
 }

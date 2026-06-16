@@ -12,8 +12,8 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.strip.xypqz"
-    minSdk = 24
-    targetSdk = 36
+    minSdk = 29
+    targetSdk = 34
     versionCode = 1
     versionName = "1.0"
 

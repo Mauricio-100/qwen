@@ -42,8 +42,37 @@ data class Video(
     val liked: Boolean = false,
     @Json(name = "is_following") val isFollowing: Boolean = false,
     @Json(name = "audio_title") val audioTitle: String? = "Original Sound",
-    @Json(name = "audio_owner") val audioOwner: String? = null
+    @Json(name = "audio_owner") val audioOwner: String? = null,
+    @Json(name = "sound_id") val soundId: String? = null,
+    @Json(name = "sound_title") val soundTitle: String? = null,
+    @Json(name = "sound_cover") val soundCover: String? = null,
+    @Json(name = "sound_category") val soundCategory: String? = null
 )
+
+fun Video.formatAudioLabel(): String {
+    val actualAudioTitle = soundTitle ?: audioTitle
+    val actualAudioOwner = audioOwner
+
+    val isOriginal = soundId == null ||
+                     soundId.startsWith("original_") ||
+                     soundId.isEmpty() ||
+                     actualAudioTitle == "Son original" ||
+                     actualAudioTitle == "Original Sound" ||
+                     actualAudioOwner.isNullOrBlank() ||
+                     actualAudioOwner == username
+
+    return if (isOriginal) {
+        "Son original" + (if (username.isNotEmpty()) " - @$username" else "")
+    } else {
+        val cleanOwner = if (actualAudioOwner != null) {
+            if (actualAudioOwner.startsWith("@")) actualAudioOwner else "@$actualAudioOwner"
+        } else {
+            ""
+        }
+        val titleText = actualAudioTitle ?: "Chanson"
+        if (cleanOwner.isNotEmpty()) "$titleText - $cleanOwner" else titleText
+    }
+}
 
 @JsonClass(generateAdapter = true)
 data class Message(
@@ -183,3 +212,123 @@ data class ActFileReply(
     @Json(name = "created_at") val createdAt: String,
     @Json(name = "is_verified") val isVerified: Boolean = false
 )
+
+@JsonClass(generateAdapter = true)
+data class Sound(
+    val id: String = "",
+    @Json(name = "user_id") val userId: String = "",
+    val title: String = "",
+    val description: String? = null,
+    @Json(name = "audio_url") val audioUrl: String = "",
+    @Json(name = "cover_url") val coverUrl: String? = null,
+    val category: String = "",
+    val duration: Float? = null,
+    @Json(name = "plays_count") val playsCount: Int = 0,
+    @Json(name = "likes_count") val likesCount: Int = 0,
+    @Json(name = "uses_count") val usesCount: Int = 0,
+    @Json(name = "created_at") val createdAt: String = "",
+    @Json(name = "author_id") val authorId: String = "",
+    @Json(name = "author_username") val authorUsername: String = "",
+    @Json(name = "author_is_verified") val authorIsVerified: Boolean = false
+)
+
+@JsonClass(generateAdapter = true)
+data class SearchMetadata(
+    val status: String,
+    @Json(name = "agent_signature") val agentSignature: String?,
+    @Json(name = "is_verified_agent") val isVerifiedAgent: Boolean?
+)
+
+@JsonClass(generateAdapter = true)
+data class SearchUsersResponse(
+    val results: List<User>,
+    val metadata: SearchMetadata? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SearchVideosResponse(
+    val results: List<Video>,
+    val metadata: SearchMetadata? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SearchSoundsResponse(
+    val results: List<Sound>,
+    val metadata: SearchMetadata? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SoundDetailsResponse(
+    val sound: Sound,
+    @Json(name = "attribution_label") val attributionLabel: String? = null,
+    val videos: List<Video> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class WingItem(
+    @Json(name = "wing_id") val wingId: String,
+    @Json(name = "thumbnail_url") val thumbnailUrl: String,
+    @Json(name = "video_url") val videoUrl: String,
+    val description: String,
+    @Json(name = "views_count") val viewsCount: Int,
+    @Json(name = "likes_count") val likesCount: Int,
+    @Json(name = "created_at") val createdAt: String,
+    @Json(name = "sound_id") val soundId: String? = null,
+    @Json(name = "sound_title") val soundTitle: String? = null,
+    @Json(name = "sound_cover") val soundCover: String? = null,
+    @Json(name = "sound_category") val soundCategory: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class UserWingsResponse(
+    @Json(name = "user_id") val userId: String,
+    val page: Int,
+    val wings: List<WingItem>
+)
+
+fun WingItem.toVideo(username: String, avatarUrl: String?, isVerified: Boolean): Video {
+    return Video(
+        id = wingId,
+        videoUrl = videoUrl,
+        thumbnailUrl = thumbnailUrl,
+        description = description,
+        views = viewsCount,
+        likes = likesCount,
+        username = username,
+        avatarUrl = avatarUrl,
+        isVerified = isVerified,
+        soundId = soundId,
+        soundTitle = soundTitle,
+        soundCover = soundCover,
+        soundCategory = soundCategory
+    )
+}
+
+fun Sound.toVideo(username: String, avatarUrl: String?, isVerified: Boolean): Video {
+    return Video(
+        id = id,
+        videoUrl = audioUrl,
+        thumbnailUrl = coverUrl ?: "",
+        description = description ?: "",
+        username = username,
+        avatarUrl = avatarUrl,
+        isVerified = isVerified,
+        soundId = id,
+        soundTitle = title,
+        soundCover = coverUrl,
+        soundCategory = category
+    )
+}
+
+@JsonClass(generateAdapter = true)
+data class Playlist(
+    val id: String = "",
+    val name: String = "",
+    val description: String? = null,
+    @Json(name = "user_id") val userId: String = "",
+    @Json(name = "created_at") val createdAt: String = "",
+    @Json(name = "videos_count") val videosCount: Int = 0
+)
+
+
+

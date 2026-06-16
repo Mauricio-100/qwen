@@ -129,8 +129,8 @@ class ChatViewModel(private val repository: StripRepository) : ViewModel() {
     fun loadConversations() {
         viewModelScope.launch {
             try {
-                val list = repository.apiService.getConversations()
-                _conversations.value = list
+                val result = repository.getConversations()
+                _conversations.value = result.getOrDefault(emptyList())
             } catch (e: Exception) {
                 _conversations.value = emptyList()
             }
@@ -162,8 +162,8 @@ class ChatViewModel(private val repository: StripRepository) : ViewModel() {
     fun loadMessages(userId: String) {
         viewModelScope.launch {
             try {
-                val list = repository.apiService.getMessages(userId)
-                _messages.value = list
+                val result = repository.getMessages(userId)
+                _messages.value = result.getOrDefault(emptyList())
             } catch (e: Exception) {
                 _messages.value = emptyList()
             }
